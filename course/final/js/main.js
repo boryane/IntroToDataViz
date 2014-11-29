@@ -29,7 +29,7 @@
 			borderColor: startColor,
 			borderWidth: 1,
 			fillColor: startColor,
-			fillOpacity: 0.2,	
+			fillOpacity: 0.5,	
 			highlightFillColor: highlightColor,
 			highlightBorderColor: highlightColor,			
 			highlightFillOpacity: 0.5,
