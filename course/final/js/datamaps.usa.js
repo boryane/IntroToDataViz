@@ -1,3 +1,8 @@
+/*!
+	Forked from https://github.com/markmarkoh/datamaps
+	
+	Description: D3 based mapping library.
+*/
 (function() {
   var svg;
 
@@ -27,6 +32,9 @@
         highlightBorderColor: 'rgba(250, 15, 160, 0.2)',
         highlightBorderWidth: 2
     },
+    projectionConfig: {
+      rotation: [97, 0]
+    },
     bubblesConfig: {
         borderWidth: 2,
         borderColor: '#FFFFFF',
@@ -35,7 +43,7 @@
           return '<div class="hoverinfo"><strong>' + data.name + '</strong></div>';
         },
         fillColor: null,
-        fillOpacity: 0.5,
+        fillOpacity: 0.75,
         animate: true,
         animationComplete: function() {},
         highlightOnHover: true,
@@ -57,7 +65,8 @@
     this.svg = d3.select( element ).append('svg')
       .attr('width', width || element.offsetWidth)
       .attr('class', 'datamap')
-      .attr('height', height || element.offsetHeight);
+      .attr('height', height || element.offsetHeight)
+      .style('overflow', 'hidden'); // IE10+ doesn't respect height/width when map is zoomed in
 
     return this.svg;
   }
@@ -67,6 +76,8 @@
     var width = options.width || element.offsetWidth;
     var height = options.height || element.offsetHeight;
     var projection, path;
+    var svg = this.svg;
+    
     if ( options && typeof options.scope === 'undefined') {
       options.scope = 'world';
     }
@@ -82,6 +93,23 @@
         .translate([width / 2, height / (options.projection === "mercator" ? 1.45 : 1.8)]);
     }
 
+    if ( options.projection === 'orthographic' ) {
+
+      svg.append("defs").append("path")
+        .datum({type: "Sphere"})
+        .attr("id", "sphere")
+        .attr("d", path);
+
+      svg.append("use")
+          .attr("class", "stroke")
+          .attr("xlink:href", "#sphere");
+
+      svg.append("use")
+          .attr("class", "fill")
+          .attr("xlink:href", "#sphere");
+      projection.scale(250).clipAngle(90).rotate(options.projectionConfig.rotation)
+    }
+
     path = d3.geo.path()
       .projection( projection );
 
@@ -91,7 +119,7 @@
   function addStyleBlock() {
     if ( d3.select('.datamaps-style-block').empty() ) {
       d3.select('head').append('style').attr('class', 'datamaps-style-block')
-      .html('.datamap path {stroke: #FFFFFF; stroke-width: 1px;} .datamaps-legend dt, .datamaps-legend dd { float: left; margin: 0 3px 0 0;} .datamaps-legend dd {width: 20px; margin-right: 6px; border-radius: 3px;} .datamaps-legend {padding-bottom: 20px; z-index: 1001; position: absolute; left: 4px; font-size: 12px; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;} .datamaps-hoverover {display: none; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; } .hoverinfo {padding: 4px; border-radius: 1px; background-color: #FFF; box-shadow: 1px 1px 5px #CCC; font-size: 12px; border: 1px solid #CCC; } .hoverinfo hr {border:1px dotted #CCC; }');
+      .html('.datamap path.datamaps-graticule { fill: none; stroke: #777; stroke-width: 0.5px; stroke-opacity: .5; pointer-events: none; } .datamap .labels {pointer-events: none;} .datamap path {stroke: #FFFFFF; stroke-width: 1px;} .datamaps-legend dt, .datamaps-legend dd { float: left; margin: 0 3px 0 0;} .datamaps-legend dd {width: 20px; margin-right: 6px; border-radius: 3px;} .datamaps-legend {padding-bottom: 20px; z-index: 1001; position: absolute; left: 4px; font-size: 12px; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;} .datamaps-hoverover {display: none; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; } .hoverinfo {padding: 4px; border-radius: 1px; background-color: #FFF; box-shadow: 1px 1px 5px #CCC; font-size: 12px; border: 1px solid #CCC; } .hoverinfo hr {border:1px dotted #CCC; }');
     }
   }
 
@@ -99,6 +127,7 @@
     var fillData = this.options.fills,
         colorCodeData = this.options.data || {},
         geoConfig = this.options.geographyConfig;
+
 
     var subunits = this.svg.select('g.datamaps-subunits');
     if ( subunits.empty() ) {
@@ -228,6 +257,14 @@
       .html(html);
   }
 
+    function addGraticule ( layer, options ) {
+      var graticule = d3.geo.graticule();
+      this.svg.insert("path", '.datamaps-subunits')
+        .datum(graticule)
+        .attr("class", "datamaps-graticule")
+        .attr("d", this.path); 
+  }
+
   function handleArcs (layer, data, options) {
     var self = this,
         svg = this.svg;
@@ -333,175 +370,178 @@
       });
   }
 
+
   function handleBubbles (layer, data, options ) {
-		var self = this,
-			fillData = this.options.fills,
-			svg = this.svg;
+    var self = this,
+        fillData = this.options.fills,
+        svg = this.svg;
 
-		if ( !data || (data && !data.slice) ) {
-			throw "Datamaps Error - bubbles must be an array";
-		}
+    if ( !data || (data && !data.slice) ) {
+      throw "Datamaps Error - bubbles must be an array";
+    }
 
-		var bubbles = layer.selectAll('circle.datamaps-bubble').data( data, JSON.stringify );
-		bubbles
-			.enter()
-			.append('svg:circle')
-			.attr('class', 'datamaps-bubble')
-			.attr('cx', function ( datum ) {
-				var latLng;
-				if ( datumHasCoords(datum) ) {
-					latLng = self.latLngToXY(datum.latitude, datum.longitude);
-				}
-				else if ( datum.centered ) {
-					latLng = self.path.centroid(svg.select('path.' + datum.centered).data()[0]);
-				}
-				if ( latLng ) return latLng[0];
-			})
-			.attr('cy', function ( datum ) {
-				var latLng;
-				if ( datumHasCoords(datum) ) {
-					latLng = self.latLngToXY(datum.latitude, datum.longitude);
-				}
-				else if ( datum.centered ) {
-					latLng = self.path.centroid(svg.select('path.' + datum.centered).data()[0]);
-				}
-				if ( latLng ) return latLng[1];;
-			})
-			.attr('r', 0) //for animation purposes
-			.attr('data-info', function(d) {
-				return JSON.stringify(d);
-			})
-			.style('stroke', function ( datum ) {
-				return typeof datum.borderColor !== 'undefined' ? datum.borderColor : options.borderColor;
-			})
-			.style('stroke-width', function ( datum ) {
-				return typeof datum.borderWidth !== 'undefined' ? datum.borderWidth : options.borderWidth;
-			})
-			.style('fill-opacity', function ( datum ) {
-				return typeof datum.fillOpacity !== 'undefined' ? datum.fillOpacity : options.fillOpacity;
-			})
-			.style('fill', function ( datum ) {
-				var fillColor = fillData[ datum.fillKey ];
-				return fillColor || options.fillColor || fillData.defaultFill;
-			})
-			.on('mouseover', function ( datum ) {
-				var $this = d3.select(this);
+    var bubbles = layer.selectAll('circle.datamaps-bubble').data( data, JSON.stringify );
 
-				if (options.highlightOnHover) {
-					//save all previous attributes for mouseout
-					var previousAttributes = {
-						'fill':  $this.style('fill'),
-						'stroke': $this.style('stroke'),
-						'stroke-width': $this.style('stroke-width'),
-						'fill-opacity': $this.style('fill-opacity')
-					};
+    bubbles
+      .enter()
+        .append('svg:circle')
+        .attr('class', 'datamaps-bubble')
+        .attr('cx', function ( datum ) {
+          var latLng;
+          if ( datumHasCoords(datum) ) {
+            latLng = self.latLngToXY(datum.latitude, datum.longitude);
+          }
+          else if ( datum.centered ) {
+            latLng = self.path.centroid(svg.select('path.' + datum.centered).data()[0]);
+          }
+          if ( latLng ) return latLng[0];
+        })
+        .attr('cy', function ( datum ) {
+          var latLng;
+          if ( datumHasCoords(datum) ) {
+            latLng = self.latLngToXY(datum.latitude, datum.longitude);
+          }
+          else if ( datum.centered ) {
+            latLng = self.path.centroid(svg.select('path.' + datum.centered).data()[0]);
+          }
+          if ( latLng ) return latLng[1];;
+        })
+        .attr('r', 0) //for animation purposes
+        .attr('data-info', function(d) {
+          return JSON.stringify(d);
+        })
+        .style('stroke', function ( datum ) {
+          return typeof datum.borderColor !== 'undefined' ? datum.borderColor : options.borderColor;
+        })
+        .style('stroke-width', function ( datum ) {
+          return typeof datum.borderWidth !== 'undefined' ? datum.borderWidth : options.borderWidth;
+        })
+        .style('fill-opacity', function ( datum ) {
+          return typeof datum.fillOpacity !== 'undefined' ? datum.fillOpacity : options.fillOpacity;
+        })
+        .style('fill', function ( datum ) {
+          var fillColor = fillData[ datum.fillKey ];
+          return fillColor || options.fillColor || fillData.defaultFill;
+        })
+        .on('mouseover', function ( datum ) {
+          var $this = d3.select(this);
 
-					$this
-						.classed("highlight", true)
-						.style('fill', options.highlightFillColor)
-						.style('stroke', options.highlightBorderColor)
-						.style('stroke-width', options.highlightBorderWidth)
-						.style('fill-opacity', options.highlightFillOpacity)
-						.attr('data-previousAttributes', JSON.stringify(previousAttributes));
-				}
+          if (options.highlightOnHover) {
+            //save all previous attributes for mouseout
+            var previousAttributes = {
+              'fill':  $this.style('fill'),
+              'stroke': $this.style('stroke'),
+              'stroke-width': $this.style('stroke-width'),
+              'fill-opacity': $this.style('fill-opacity')
+            };
 
-				if (options.popupOnHover) {
-					self.updatePopup($this, datum, options, svg);
-				}
-			})
-			.on('mouseout', function ( datum ) {
-				var $this = d3.select(this);
+            $this
+              .classed("highlight", true)
+              .style('fill', options.highlightFillColor)
+              .style('stroke', options.highlightBorderColor)
+              .style('stroke-width', options.highlightBorderWidth)
+              .style('fill-opacity', options.highlightFillOpacity)
+              .attr('data-previousAttributes', JSON.stringify(previousAttributes));
+          }
 
-				if (options.highlightOnHover) {
-					//reapply previous attributes
-					var previousAttributes = JSON.parse( $this.attr('data-previousAttributes') );
-					for ( var attr in previousAttributes ) {
-						$this.style(attr, previousAttributes[attr]);
-					}
-				}
+          if (options.popupOnHover) {
+            self.updatePopup($this, datum, options, svg);
+          }
+        })
+        .on('mouseout', function ( datum ) {
+          var $this = d3.select(this);
 
-				d3.selectAll('.datamaps-hoverover').style('display', 'none');
-			})
-			.transition()
-			.duration(500)
-			.attr('r', function ( datum ) {
-				return datum.radius;
-			})
-			.call(animationComplete, function() {
-				//fire off callback when animation is complete
-				self.options.bubblesConfig.animationComplete(self, bubbles);
-			});
-			
-		bubbles.exit()
-			.transition().delay(options.exitDelay)
-			.attr("r", 0)
-			.remove();
+          if (options.highlightOnHover) {
+            //reapply previous attributes
+            var previousAttributes = JSON.parse( $this.attr('data-previousAttributes') );
+            for ( var attr in previousAttributes ) {
+              $this.style(attr, previousAttributes[attr]);
+            }
+          }
 
-		function animationComplete(transition, callback) { 
-			var n = 0;
-			if(transition.size() == 0) {
-				// no animations so immediately do callback
-				callback.apply(this, arguments);
-			} else {
-				// use counter to ensure all animations have ended
-				transition 
-					.each(function() { ++n; }) 
-					.each("end", function() { if (!--n) callback.apply(this, arguments); });
-			}
-		};
+          d3.selectAll('.datamaps-hoverover').style('display', 'none');
+        })
+        .transition().duration(400)
+          .attr('r', function ( datum ) {
+            return datum.radius;
+          })
+          .call(animationComplete, function() {
+            //fire off callback when animation is complete
+            self.options.bubblesConfig.animationComplete(self, bubbles);
+          });
 
-		function datumHasCoords (datum) {
-			return typeof datum !== 'undefined' && typeof datum.latitude !== 'undefined' && typeof datum.longitude !== 'undefined';
-		};
+    bubbles.exit()
+      .transition()
+        .delay(options.exitDelay)
+        .attr("r", 0)
+        .remove();
+
+    function animationComplete(transition, callback) { 
+      var n = 0;
+      if(transition.size() == 0) {
+        // no animations so immediately do callback
+        callback.apply(this, arguments);
+      } else {
+        // use counter to ensure all animations have ended
+        transition 
+          .each(function() { ++n; }) 
+          .each("end", function() { if (!--n) callback.apply(this, arguments); });
+      }
+    };
+    function datumHasCoords (datum) {
+      return typeof datum !== 'undefined' && typeof datum.latitude !== 'undefined' && typeof datum.longitude !== 'undefined';
+    };
     
-		return bubbles;
-	} // end handlesBubbles
+    return bubbles;
+  } //end handlesBubbles
 
-	//stolen from underscore.js
-	function defaults(obj) {
-		Array.prototype.slice.call(arguments, 1).forEach(function(source) {
-			if (source) {
-				for (var prop in source) {
-					if (obj[prop] == null) obj[prop] = source[prop];
-				}
-			}
-		});
-		return obj;
-	}
-	
-	/**************************************
-			 Public Functions
-	***************************************/
+  //stolen from underscore.js
+  function defaults(obj) {
+    Array.prototype.slice.call(arguments, 1).forEach(function(source) {
+      if (source) {
+        for (var prop in source) {
+          if (obj[prop] == null) obj[prop] = source[prop];
+        }
+      }
+    });
+    return obj;
+  }
+  /**************************************
+             Public Functions
+  ***************************************/
 
-	function Datamap( options ) {
-		if ( typeof d3 === 'undefined' || typeof topojson === 'undefined' ) {
-			throw new Error('Include d3.js (v3.0.3 or greater) and topojson on this page before creating a new map');
-		}
+  function Datamap( options ) {
 
-		//set options for global use
-		this.options = defaults(options, defaultOptions);
-		this.options.geographyConfig = defaults(options.geographyConfig, defaultOptions.geographyConfig);
-		this.options.bubblesConfig = defaults(options.bubblesConfig, defaultOptions.bubblesConfig);
-		this.options.arcConfig = defaults(options.arcConfig, defaultOptions.arcConfig);
+    if ( typeof d3 === 'undefined' || typeof topojson === 'undefined' ) {
+      throw new Error('Include d3.js (v3.0.3 or greater) and topojson on this page before creating a new map');
+   }
 
-		//add the SVG container
-		if ( d3.select( this.options.element ).select('svg').length > 0 ) {
-			addContainer.call(this, this.options.element, this.options.height, this.options.width );
-		}
+    //set options for global use
+    this.options = defaults(options, defaultOptions);
+    this.options.geographyConfig = defaults(options.geographyConfig, defaultOptions.geographyConfig);
+    this.options.projectionConfig = defaults(options.projectionConfig, defaultOptions.projectionConfig);
+    this.options.bubblesConfig = defaults(options.bubblesConfig, defaultOptions.bubblesConfig);
+    this.options.arcConfig = defaults(options.arcConfig, defaultOptions.arcConfig);
 
-		/* Add core plugins to this instance */
-		this.addPlugin('bubbles', handleBubbles);
-		this.addPlugin('legend', addLegend);
-		this.addPlugin('arc', handleArcs);
-		this.addPlugin('labels', handleLabels);
+    //add the SVG container
+    if ( d3.select( this.options.element ).select('svg').length > 0 ) {
+      addContainer.call(this, this.options.element, this.options.height, this.options.width );
+    }
 
-		//append style block with basic hoverover styles
-		if ( ! this.options.disableDefaultStyles ) {
-			addStyleBlock();
-		}
+    /* Add core plugins to this instance */
+    this.addPlugin('bubbles', handleBubbles);
+    this.addPlugin('legend', addLegend);
+    this.addPlugin('arc', handleArcs);
+    this.addPlugin('labels', handleLabels);
+    this.addPlugin('graticule', addGraticule);
 
-		return this.draw();
-	}
+    //append style block with basic hoverover styles
+    if ( ! this.options.disableDefaultStyles ) {
+      addStyleBlock();
+    }
+
+    return this.draw();
+  }
 
   // actually draw the features(states & countries)
   Datamap.prototype.draw = function() {
@@ -524,7 +564,7 @@
       });
     }
     else {
-      draw( this[options.scope + 'Topo'] );
+      draw( this[options.scope + 'Topo'] || options.geographyConfig.dataJson);
     }
 
     return this;
@@ -624,7 +664,7 @@
     element.on('mousemove', function() {
       var position = d3.mouse(this);
       d3.select(self.svg[0][0].parentNode).select('.datamaps-hoverover')
-        .style('top', ( (position[1] + 10)) + "px")
+        .style('top', ( (position[1] + 15)) + "px")
         .html(function() {
           var data = JSON.parse(element.attr('data-info'));
           //if ( !data ) return '';
