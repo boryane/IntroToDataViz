@@ -1,0 +1,57 @@
+<html>
+	<head>
+	</head>
+	<body>
+		 <div>
+			  <svg id="circles"></svg>
+		 </div>
+
+		 <!-- Include d3.js -->
+		 <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+		 <script>
+				// basic way to grab data, grabs all of it
+				var height = 800,
+					width = 1000,
+					// random color scale
+					colors = d3.scale.category20();
+			
+				circlesSVG = d3.select('#circles')
+									.attr('height', height)
+									.attr('width', width);
+
+				d3.csv('/course/data/Consumer_Complaints.csv', function(data) {
+					debugger;
+					var nestedData = d3.nest()
+											// set rollup key
+											.key(function(d) { return d.Company; })
+											// rollup and count companies
+											.rollup(function(leaves) { return leaves.length; })
+											// load data
+											.entries(data)
+											// descending sort
+											.sort(function(a, b) { return b.values - a.values; });
+
+					circles = circlesSVG.selectAll("circle")
+												.data(nestedData)
+												.enter()
+												.append('circle');
+
+					circles
+						.attr('cx', function(d, i) {
+							//return Math.max(0, Math.random() * width )
+							return i* 15;
+						})
+						.attr('cy', function(d, i) {
+							//return Math.max(0, Math.random() * height)
+							return i * 15;
+						})
+						.attr('r', function(d, i) { 
+							return d.values / 100;
+						})
+						.style('fill', function(d, i) { 
+							return colors(i);
+						});
+			  });
+		 </script>
+	</body>
+</html>

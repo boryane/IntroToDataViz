@@ -1,0 +1,52 @@
+body {
+	background-color:#eee;
+}
+.container {
+	margin-top:15px;
+}
+.btn {
+	width:100%;
+}
+.map-container {
+
+}
+#usmap {
+	background-color:#fff;
+	border:1px solid #ccc;
+	border-radius:4px;
+	position:relative;
+	height:600px;
+}
+#usmap .datamaps-hoverover .hoverinfo {
+	font-size:.8em !important;
+}
+#citylist {
+	background-color: #fff;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	padding: 0.2em 0.5em;
+	width: 100%;
+}
+#citylist table {
+	width:100%;
+}
+#citylist td {
+	font-family: "Helvetica Neue", HelveticaNeue, Helvetica, sans-serif;
+	font-size: 0.8em;
+}
+#citylist td.beginsWith {
+	horizontal-align:left;
+	width:95%;
+}
+#citylist td.count {
+	horizontal-align:right;
+	text-align:right;
+	white-space:nowrap;
+}
+div.col-md-1,
+	div.col-md-2 {
+	padding:0;
+}
+.timer {
+	font-size:.8em;
+}

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		 <style type="text/css">
+		 	.barchart {
+		 		border:1px solid #ccc;
+		 	}
+		 	.barchart rect {
+		 		fill:steelblue;
+		 	}
+		 	.barchart text {
+		 		fill:white;
+		 		font:10px sans-serif;
+		 		text-anchor:middle;
+		 	}
+		 	.barchart text.company {
+		 		fill:black;
+		 	}
+		 </style>
+	</head>
+	<body>
+		 <div>
+			  <svg id="top_complaints" class="barchart"></svg>
+		 </div>
+		 <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+		 <script>
+				// basic way to grab data, grabs all of it
+				var height = 300,
+					barWidth = 60,
+					barSpace = 10,
+					//csvPath = "/course/data/Consumer_Complaints.csv";
+					csvPath = "/course/data/top_complaint_companies.csv";
+
+				d3.csv(csvPath, function(data) {
+					/*
+					chartData = d3.nest()
+						// set rollup key
+						.key(function(d) { return d.Company; })
+						// rollup and count companies
+						.rollup(function(leaves) { return leaves.length; })
+						// load data
+						.entries(data)
+						// descending sort
+						.sort(function(a, b) { return b.values - a.values; })
+						// get top 10
+						.filter(function(d, i) {return i < 10});
+					*/
+
+					chartData = data
+						// descending sort
+						.sort(function(a, b) { return b.complaints - a.complaints; })
+						// get top 10
+						.filter(function(d, i) {return i < 10});
+
+					// get scaling function to properly adjust bar heights
+					var y = d3.scale.linear()
+						.domain([0, d3.max(chartData, function(d) {return parseInt(d.complaints);})])
+						.range([0, height]);
+
+					// set chart dimensions
+					var chart = d3.select('#top_complaints')
+						.attr('height', height)
+						.attr('width', (barWidth + barSpace) * chartData.length);
+						
+					// append each vertical column in the chart
+					var bar = chart.selectAll("g")
+						.data(chartData)
+						.enter().append("g")
+						.attr("transform", function(d, i) {
+							var bHeight = height - y(d.complaints),
+								bWidth = i * (barWidth + barSpace);
+							return "translate(" + bWidth + "," + bHeight + ")";
+						});
+					
+					// append rectangles inside each column
+					bar.append("rect")
+						.attr("width", barWidth)
+						.attr("height", function(d) {return y(d.complaints);});
+					
+					// add "complaint count" text
+					bar.append("text")
+						.attr("x", function(d) {
+							return (barWidth) / 2;
+						})
+						.attr("y", function(d) {
+							return 10;
+						})
+						.attr("dy", ".3em")
+						.text(function(d) { return d.complaints; });
+						
+					// add "company name" text and wrap it properly
+					bar.append("text")
+						.attr("x", (barWidth) / 2)
+						.attr("y",  30)
+						.attr("width", barWidth)
+						.attr("dy", ".3em")
+						.text(function(d) {return d.company;})
+						.classed("company", true)
+						.call(wrap, barWidth);
+				});
+				
+				// wraps the text inside an SVG text element with multiple words
+				function wrap(text, width) {
+				  text.each(function() {
+					 var text = d3.select(this),
+						  words = text.text().split(/\s+/).reverse(),
+						  word,
+						  line = [],
+						  lineNumber = 0,
+						  lineHeight = 1.1, // ems
+						  y = text.attr("y"),
+						  x = text.attr("x"),
+						  dy = parseFloat(text.attr("dy")),
+						  tspan = text.text(null).append("tspan").attr("x", x).attr("y", y).attr("dy", dy + "em");
+					 while (word = words.pop()) {
+						line.push(word);
+						tspan.text(line.join(" "));
+						if (tspan.node().getComputedTextLength() > width) {
+						  line.pop();
+						  tspan.text(line.join(" "));
+						  line = [word];
+						  tspan = text.append("tspan").attr("x", x).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+						}
+					 }
+				  });
+				}			
+
+		 </script>
+	</body>
+</html>

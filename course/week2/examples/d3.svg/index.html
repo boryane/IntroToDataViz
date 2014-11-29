@@ -1,33 +1,33 @@
 <html>
-<head>
-</head>
-<style>
-    body {
-      font: 10px sans-serif;
-    }
+	<head>
+	</head>
+	<style>
+		 body {
+			font: 10px sans-serif;
+		 }
 
-    #chart {
-        padding: 25px;
-    }
+		 #chart {
+			  padding: 25px;
+		 }
 
-    .axis path, .axis line {
-      fill: none;
-      stroke: #000;
-      shape-rendering: crispEdges;
-    }
+		 .axis path, .axis line {
+			fill: none;
+			stroke: #000;
+			shape-rendering: crispEdges;
+		 }
 
-    .theline {
-      fill: none;
-      stroke: steelblue;
-      stroke-width: 1.5px;
-    }
+		 .theline {
+			fill: none;
+			stroke: steelblue;
+			stroke-width: 1.5px;
+		 }
 
-    .dots circle {
-      fill: white;
-      stroke: steelblue;
-      stroke-width: 1.5px;
-    }
-</style>
+		 .dots circle {
+			fill: white;
+			stroke: steelblue;
+			stroke-width: 1.5px;
+		 }
+	</style>
 <body>
 
     <div id="chart">
@@ -52,7 +52,6 @@
                                         .attr("transform", "translate(" + margin + "," + margin + ")");
 
         var xScale = d3.scale.linear()
-                              .domain(["1800", "2020"])
                               .range([0, width]);
 
         // the data is in percentages, so the y domain is 0-100 as in percent.
@@ -62,21 +61,53 @@
 
         var xAxis = d3.svg.axis()
                             .scale(xScale)
-                            .orient("bottom");
+                            .orient("bottom")
+                            .tickFormat(function(d) {
+                            	return d.toString();
+                            });
 
         var yAxis = d3.svg.axis()
                             .scale(yScale)
                             .orient("left");
 
-
-        var line = d3.svg.line()
+        var makeLine = function(key) {
+        					return d3.svg.line()
                         .x(function(d) { return xScale( d.Year ); })
-                        .y(function(d) { return yScale( parseFloat(d.Top1) ); })
+                        .y(function(d) { return yScale( parseFloat(d[key]) ); })
                         .interpolate("linear");
+                     };
 
-        d3.csv('../../../../course/data/Inequality.csv', function(data) {
+			var line2 = d3.svg.line()
+				.interpolate("linear")
+				.x(function (d, i) {
+					//debugger;
+					return xScale( d.x );
+				})
+				.y(function (d, i) {
+					//debugger;
+					return yScale( parseFloat(d.y) );
+				});
 
-            viz.datum(data)
+        d3.csv('/course/data/Inequality.csv', function(data) {
+
+            //viz.datum(data)
+
+            layeredData = d3.keys(data[0]).slice(1).map(function(segment) { 
+					return data.map(function(d) {
+						//debugger;
+						return {
+							y: parseInt( d[segment] ),
+							x: d.Year
+						}
+					});
+            });
+            
+            //viz.datum(layeredData);
+
+				xScale.domain([
+						d3.min(data, function(d){return d.Year}),
+						d3.max(data, function(d){return d.Year})
+						]);
 
             viz.append("g")
                 .attr("class", "x axis")
@@ -87,21 +118,55 @@
                 .attr("class", "y axis")
                 .call(yAxis);
 
-            viz.append("path")
-                .attr("d", line)
-                .attr("class", "theline");
+				var lines = viz.selectAll("g.lines")
+					.data(layeredData)
+					.enter().append("g")
+					.attr("class", "line");
+					
+				lines.append("path")
+					.attr("class", "theline")
+					.attr("d", function (d, i) {
+						//debugger;
+						return line2(d, i);
+					});
 
-            
-            dots = viz.selectAll("g.dots")
-                        .data(data)
-                        .enter().append("g");
+/*
+				d3.keys(data[0]).slice(1).forEach(function(value, index) {
+					var line = makeLine(value);
+					viz.append("path")
+						 .attr("d", line)
+						 .attr("class", "theline");
+	
+					//debugger;
+					//dots.attr("transform", function(d) {
+					//	return "translate(" + line.x()(d) + "," + line.y()(d) + ")"
+					//});	
+				});
+*/
+				//debugger;
 
-            dots.attr("transform", function(d) {
-                return "translate(" + line.x()(d) + "," + line.y()(d) + ")"});
-
-            dots.append("circle")
-                 .attr("r", 3.5);
-
-            })
+				viz.selectAll("g.dots")
+					.data(layeredData)
+					.enter().append("g")
+					.attr("class", "dots")
+					//.append("circle")
+					.selectAll("circle")
+					.data(function(d) {
+						return d;
+					})
+						.enter().append("circle")
+						.attr("r", 3)
+						.attr("cx", function(d,i) { 
+							//debugger;
+							return xScale(d.x); 
+						})
+						.attr("cy", function(d,i) {
+							//debugger; 
+							return yScale(parseFloat(d.y)); 
+						});
+										
+            //dots.append("circle")
+            //     .attr("r", 3.5);
+         })
     </script>
 </body>

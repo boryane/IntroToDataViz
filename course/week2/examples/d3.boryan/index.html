@@ -1,0 +1,222 @@
+<html>
+	<head>
+	</head>
+	<style>
+		 body {
+				font:10px sans-serif;
+		 }
+		 #chart {
+			  padding: 25px;
+		 }
+		 .axis path, .axis line {
+			fill: none;
+			stroke: #000;
+			shape-rendering: crispEdges;
+		 }
+		 g.dots {
+			pointer-events:all;		 
+		 }
+		 .line {
+			fill:none;
+			stroke:steelblue;
+			stroke-width: 1.5px;
+		 }
+		 .dots .dot {
+			fill:steelblue;
+			stroke:steelblue;
+			stroke-width:1.5px;
+		 }
+		 .highlight .dot {
+		 	fill:yellow;
+		 }
+		 .focus {
+		 	fill:red;
+		 }
+		.focus circle {
+			fill: none;
+			stroke: steelblue;
+		}		 
+		 .focus text {
+		 	fill:black;
+		 	stroke-width:1.5px;
+		 }
+		.overlay {
+			fill: none;
+			pointer-events: all;
+		}		 
+	</style>
+	<script src="http://d3js.org/d3.v3.js" charset="utf-8"></script>
+<body>
+	<div id="chart"></div>
+	<script type="text/javascript">
+        
+		var height = 500,
+			width = 500,
+			margin = 50;
+
+		d3.select("#chart").append("h1")
+			.text("Percentage of overall wealth owned by the wealthiest 1% of Americans over time.")
+
+		var chart = d3.select("#chart").append("svg")
+				.attr("id", "viz")
+				.attr('height', height + margin * 2)
+				.attr('width', width + margin * 2)
+			.append('g')
+				.attr("transform", "translate(" + margin + "," + margin + ")");
+
+		bisectDate = d3.bisector(function(d) { 
+				return d.x;
+			}).left;
+
+		var xScale = d3.scale.linear()
+			.range([0, width]);
+
+		// the data is in percentages, so the y domain is 0-100 as in percent.
+		var yScale = d3.scale.linear()
+			.domain([0, 100])
+			.range([height, 0])
+
+		var xAxis = d3.svg.axis()
+			.scale(xScale)
+			.orient("bottom")
+			.tickFormat(function(d) {
+				return d.toString();
+			});
+
+		var yAxis = d3.svg.axis()
+			.scale(yScale)
+			.orient("left");
+
+		// calculates the svg line path
+		var line = d3.svg.line()
+			.interpolate("linear")
+			.x(function (d, i) {
+				return xScale( d.x );
+			})
+			.y(function (d, i) {
+				return yScale( parseFloat(d.y) );
+			});
+
+		d3.csv('/course/data/Inequality.csv', function(data) {
+
+			// format data into 4 arrays corresponding to 4 data series
+			// slice(1) removes the the first column (Year)
+			layeredData = d3.keys(data[0]).slice(1).map(function(segment) { 
+				return data.map(function(d) {
+					//debugger;
+					return {
+						x: d.Year,
+						y: parseInt( d[segment] )
+					}
+				});
+			});
+
+			// automatically set min/max on x-axis
+			xScale.domain([
+					d3.min(data, function(d){return d.Year}),
+					d3.max(data, function(d){return d.Year})
+					]);
+
+			// add x-axis
+			chart.append("g")
+				 .attr("class", "x axis")
+				 .attr("transform", "translate(0," + height + ")")
+				 .call(xAxis);
+
+			// add y-axis
+			chart.append("g")
+				 .attr("class", "y axis")
+				 .call(yAxis);
+
+			// add line boxes to svg
+			var lines = chart.selectAll("g.lines")
+				.data(layeredData)
+				.enter().append("g")
+				.attr("class", "line");
+	
+			// add line segments to svg
+			lines.append("path")
+				.attr("class", "line")
+				.attr("d", function (d, i) {
+					var bisect = d3.bisector(function(d) { return d.y; }).right,
+						sliceAt = bisect(d, 0);
+					// only return points to the right of the first non-zero y-value
+					d = d.slice(sliceAt);
+					return line(d, i);
+				});
+
+			// add dots to svg
+			chart.selectAll("g.dots")
+				.data(layeredData)
+				.enter().append("g")
+				.attr("class", "dots")
+				.on("mousemove", onmousemove)
+				.on("mouseover", onmouseover)
+				.on("mouseout", onmouseout)	
+				.selectAll("circle")				
+				.data(function(d, i) {
+					// iterate through all points on the line
+					return d;
+				})
+					.enter()
+					.append("circle")
+					.attr("class", "dot")
+					.filter(function(d) { return d.y > 0; })		
+					.attr("r", 4)
+					.attr("cx", function(d,i) { 
+						return xScale(d.x); 
+					})
+					.attr("cy", function(d,i) {
+						return yScale(parseFloat(d.y)); 
+					})
+
+			var focus = chart
+				.append("g")
+					.attr("class", "focus")
+					.style("display", "none");
+			focus.append("circle")
+					.attr("r", 6)
+				.append("text")
+					.attr("x", 9)
+					.attr("dy", ".35em");
+
+			chart.append("rect")
+				.attr("class", "overlay")
+				.attr("width", width)
+				.attr("height", height)
+				.on("mouseover", function() { focus.style("display", null); })
+				.on("mouseout", function() { focus.style("display", "none"); })
+				.on("mousemove", onmousemove);
+
+			function onmousemove(data, i) {
+				//debugger;
+				data = layeredData[i];
+				//debugger;
+				var x0 = parseInt(xScale.invert(d3.mouse(this)[0]));
+				var i = bisectDate(data, x0, 0, data.length-1);
+				var
+					d0 = data[i - 1],
+					d1 = data[i],
+					d = x0 - d0.x > d1.x - x0 ? d1 : d0;
+				console.log(xScale(d.x) + ":" + yScale(d.y));
+				focus.attr("transform", "translate(" + xScale(d.x) + "," + yScale(d.y) + ")");
+				focus.select("text").text(d.x);
+			}		
+		
+			function onmouseover(d, i) {
+				// unhighlight existing rows
+				d3.selectAll("#chart .dots").classed("highlight", false);
+				// highlight circles on mouseover
+				d3.selectAll("#chart .dots")[0][i].classList.add("highlight");
+				//focus.style("display", null);
+			}
+		
+			function onmouseout(d, i) {
+				// unhighlight the highlighted circles
+				
+				//focus.style("display", "none");
+			}	
+		});
+		
+    </script>
+</body>
