@@ -1,9 +1,9 @@
 (function() {
 	var startColor = "#3399ff", 
-		highlightColor = "#cc0000",
-		minRadius = currentRadius = 1,
+		minRadius = 1,
 		maxSampleSize = 5000,
-		mapPath = "data/cities.json",
+		csvMapPath = "data/cities.csv",
+		jsonMapPath = "data/cities.json",
 		bubbleChange = {
 			hasChanged: false,
 			interval: null, // object
@@ -27,13 +27,13 @@
 		bubblesConfig: {
 			animationComplete: onAnimationComplete,
 			bubbleDraw: onBubbleDraw,
+			bubbleMouseOver: onBubbleMouseOver,
+			bubbleRadius: minRadius,
 			borderColor: startColor,
 			borderWidth: 1,
 			fillColor: startColor,
 			fillOpacity: 0.5,	
-			highlightFillColor: highlightColor,
-			highlightBorderColor: highlightColor,			
-			highlightFillOpacity: 0.5,
+			highlightClassName: "highlight",
 			highlightOnHover: true,
 			popupOnHover: true
 		},
@@ -41,7 +41,8 @@
 	});
 	
 	// load data and initialize Map
-	d3.json(mapPath, setupMap);
+	//d3.json(jsonMapPath, function(data) {setupMap(data, "json");});
+	d3.csv(csvMapPath, function(data) {setupMap(data, "csv");});
 
 /*** Functions ***/
 	
@@ -86,17 +87,20 @@
 		updateStats(cache.data, timer);	
 	}
 	
-	/* formats json data to DataMaps format */
-	function formatToDataMaps(data) {
-		data = _.map(data, function(row) {
-			return {
-				latitude: row.la,
-				longitude: row.lo,
-				city: row.ci,
-				state: row.st,
-				radius: currentRadius
-			}
-		});
+	/* formats csv or json data to DataMaps format */
+	function formatToDataMaps(data, type) {
+		if (type == "json") {
+			// only json needs to be re-mapped due to shorter field names to save file space
+			data = _.map(data, function(row) {
+				return {
+					id: row.id,
+					latitude: row.la,
+					longitude: row.lo,
+					city: row.ci,
+					state: row.st
+				};
+			});
+		}
 		return data;
 	}
 
@@ -185,9 +189,10 @@
 	}
 
 	/* sets up the initial map after a dataset has been loaded from JSON or CSV */
-	function setupMap(data) {
+	function setupMap(data, type) {
+	
 		// format the data for the topojson format
-		var allCities = formatToDataMaps(data),
+		var allCities = formatToDataMaps(data, type),
 			refreshingMap = false;
 	 
 	 	// update bubbles on map
@@ -221,19 +226,17 @@
 			.domain([1, maxSampleSize])
 			.rangeRound([10, minRadius]);
 		
-		currentRadius = radiusScale(data.length);
-		
-		data = _.map(data, function(row) {
-			row.radius = currentRadius;
-			return row;
-		});
+
+		// set new bubble radius based on # of bubbles on map
+		map.options.bubblesConfig.bubbleRadius = radiusScale(data.length);
 		
 		map.bubbles(data, {
 			popupTemplate: function (geo) {
 				return '<div class="hoverinfo">' + geo.city +
 					', ' + geo.state + '</div>';
 			}
-		});		
+		})
+			.attr("id", function(d) {return d.id;});		
 	} 
 
 	/* updates the text statistics below the graph */
@@ -292,6 +295,14 @@
 				var className = datum.beginsWith.toLowerCase().replace(" ", "-space-");
 				d3.selectAll("circle." + className)
 					.classed("highlight", true);
+				
+				/*
+				bubbles
+					.sort(function (a, b) { // select the parent and sort the path's
+						if ( (a.city + a.state) != (datum.city + datum.state) ) return -1;  // a is not the hovered element, send "a" to the back
+						else return 1;                    											  // a is the hovered element, bring "a" to the front
+					});
+				*/					
 			})
 			.on("mouseout", function(datum) {
 				var className = datum.beginsWith.toLowerCase().replace(" ", "-space-");
@@ -321,36 +332,36 @@
 	
 		// enter + update text
 		cells.html(function (d, i) {
-				var value = d.value,
-					text = "",
-					lastChar;
+			var value = d.value,
+				text = "",
+				lastChar;
 
-				if(i == 0) {
-					// first column - text
-					if(currentValue == value) {
-						// exact match
-						text += "\"" + value + "\"";
-					}
-					else if (allRollup.total > 0) {
-						// partial match
-						text = value.substring(0, value.length - 1);
-						lastChar = value.substring(value.length - 1);
-						if(lastChar == " ") lastChar = "[space]";
-						text += "<span class='nextChar'>" + lastChar + "</span>";
-					}
-					else {
-						// no matches
-						text += value;
-					}		
+			if(i == 0) {
+				// first column - text
+				if(currentValue == value) {
+					// exact match
+					text += "\"" + value + "\"";
 				}
-				else if (i == 1) {
-					// second column - count and percentage
-					if(allRollup.total > 0)
-						text += value + " <span class='percentage'>(" + (Math.round(value * 10000.0 / allRollup.total) / 100) + "%)</span>";
+				else if (allRollup.total > 0) {
+					// partial match
+					text = value.substring(0, value.length - 1);
+					lastChar = value.substring(value.length - 1);
+					if(lastChar == " ") lastChar = "[space]";
+					text += "<span class='nextChar'>" + lastChar + "</span>";
 				}
-				
-				return text;
-			})
+				else {
+					// no matches
+					text += value;
+				}		
+			}
+			else if (i == 1) {
+				// second column - count and percentage
+				if(allRollup.total > 0)
+					text += value + " <span class='percentage'>(" + (Math.round(value * 10000.0 / allRollup.total) / 100) + "%)</span>";
+			}
+			
+			return text;
+		});
 		
 		// remove invalid cells
 		cells
@@ -364,13 +375,8 @@
 	}
 	
 /* Events */
-	function onAnimationComplete(datamap, bubbles) {
-		bubbles
-			.transition()
-			.duration(100)
-			.attr("r", function ( datum ) {
-				return datum.radius;
-			});
+	function onAnimationComplete() {
+		// fires when animation changes (such as bubble drawing) on map have completed
 	}
 	
 	function onBubbleDraw() {
@@ -392,6 +398,16 @@
 		
 		// add beginsWith + 1 character as class name
 		this.attr("class", classes);
+	}
+	
+	function onBubbleMouseOver(bubbles) {
+		var self = this;
+		// sorts bubbles so that "hovered" ones are placed on top of non-hovered	
+		bubbles
+			.sort(function (a, b) {
+				if ( a.id != self.attr("id") ) return -1;  // a is not the hovered element, send "a" to the back
+				else return 1;                             // a is the hovered element, bring "a" to the front
+			});	
 	}
 
 	function onDataMapLoad(datamap) {

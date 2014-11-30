@@ -27,8 +27,9 @@ body {
 	font-size:.8em !important;
 }
 #usmap circle.highlight {
-	fill:#cc0000 !important;
-	stroke:red !important;
+	fill: #c00 !important;
+	fill-opacity: 0.5 !important;
+	stroke: red !important;
 	stroke-width: 2px !important;
 }
 #citylist {

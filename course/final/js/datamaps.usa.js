@@ -47,6 +47,10 @@
         animate: true,
         animationComplete: function() {},
         bubbleDraw: function() {},
+        bubbleMouseOver: function() {},
+        bubbleMouseOut: function() {},
+        bubbleRadius: 2,
+        highlightClassName: null,
         highlightOnHover: true,
         highlightFillColor: '#FC8D59',
         highlightBorderColor: 'rgba(250, 15, 160, 0.2)',
@@ -371,7 +375,6 @@
       });
   }
 
-
   function handleBubbles (layer, data, options ) {
     var self = this,
         fillData = this.options.fills,
@@ -428,26 +431,34 @@
           var $this = d3.select(this);
 
           if (options.highlightOnHover) {
-            //save all previous attributes for mouseout
-            var previousAttributes = {
-              'fill':  $this.style('fill'),
-              'stroke': $this.style('stroke'),
-              'stroke-width': $this.style('stroke-width'),
-              'fill-opacity': $this.style('fill-opacity')
-            };
+          	if(options.highlightClassName) {
+          		$this.classed(options.highlightClassName, true);
+            }
+            else {
+				  // no className specified
+				  // save all previous attributes for mouseout
+				  var previousAttributes = {
+				    'fill':  $this.style('fill'),
+				    'stroke': $this.style('stroke'),
+				    'stroke-width': $this.style('stroke-width'),
+				    'fill-opacity': $this.style('fill-opacity')
+				  };
 
-            $this
-              .classed("highlight", true)
-              .style('fill', options.highlightFillColor)
-              .style('stroke', options.highlightBorderColor)
-              .style('stroke-width', options.highlightBorderWidth)
-              .style('fill-opacity', options.highlightFillOpacity)
-              .attr('data-previousAttributes', JSON.stringify(previousAttributes));
+				  $this
+				    .style('fill', options.highlightFillColor)
+				    .style('stroke', options.highlightBorderColor)
+				    .style('stroke-width', options.highlightBorderWidth)
+				    .style('fill-opacity', options.highlightFillOpacity)
+				    .attr('data-previousAttributes', JSON.stringify(previousAttributes));
+            }
           }
 
           if (options.popupOnHover) {
             self.updatePopup($this, datum, options, svg);
           }
+          
+          // event callback
+          options.bubbleMouseOver.apply($this, [bubbles]);
         })
         .on('mouseout', function ( datum ) {
           var $this = d3.select(this);
@@ -455,23 +466,30 @@
           $this.classed("highlight", false);
 
           if (options.highlightOnHover) {
-            //reapply previous attributes
-            var previousAttributes = JSON.parse( $this.attr('data-previousAttributes') );
-            for ( var attr in previousAttributes ) {
-              $this.style(attr, previousAttributes[attr]);
+            if(options.highlightClassName) {
+              $this.classed(options.highlightClassName, false);
+            }
+            else {
+              // reapply previous attributes
+              var previousAttributes = JSON.parse( $this.attr('data-previousAttributes') );
+              for ( var attr in previousAttributes ) {
+                $this.style(attr, previousAttributes[attr]);
+              }
             }
           }
 
           d3.selectAll('.datamaps-hoverover').style('display', 'none');
         })
-        .transition().duration(400)
-          .attr('r', function ( datum ) {
-            return datum.radius;
-          })
-          .call(animationComplete, function() {
-            //fire off callback when animation is complete
-            self.options.bubblesConfig.animationComplete(self, bubbles);
-          });
+        
+      // change radius on all bubbles
+      bubbles
+        .transition()
+        .duration(400)
+		  .attr('r', self.options.bubblesConfig.bubbleRadius)
+        .call(animationComplete, function() {
+          // fire off callback when animation is complete
+          self.options.bubblesConfig.animationComplete.apply(bubbles);
+        });
 
     bubbles.each(function(d, i) {
       d3.select(bubbles[0][i]).call(self.options.bubblesConfig.bubbleDraw);
@@ -500,7 +518,7 @@
     };
     
     return bubbles;
-  } //end handlesBubbles
+  } //end handleBubbles
 
   //stolen from underscore.js
   function defaults(obj) {
@@ -687,7 +705,8 @@
     var self = this;
     if ( typeof Datamap.prototype[name] === "undefined" ) {
       Datamap.prototype[name] = function(data, options, callback, createNewLayer) {
-        var layer;
+        var layer, 
+          returned = null;
         if ( typeof createNewLayer === "undefined" ) {
           createNewLayer = false;
         }
@@ -709,10 +728,11 @@
           this.options[name + 'Layer'] = layer;
           this.options[name + 'Options'] = options;
         }
-        pluginFn.apply(this, [layer, data, options]);
+        returned = pluginFn.apply(this, [layer, data, options]);
         if ( callback ) {
           callback(layer);
         }
+        return returned;
       };
     }
   };
