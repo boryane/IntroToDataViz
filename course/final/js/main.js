@@ -25,7 +25,8 @@
 			highlightOnHover: false
 		},
 		bubblesConfig: {
-			animationComplete: onAnimationComplete,	
+			animationComplete: onAnimationComplete,
+			bubbleDraw: onBubbleDraw,
 			borderColor: startColor,
 			borderWidth: 1,
 			fillColor: startColor,
@@ -245,15 +246,10 @@
 	
 	/* shows table of up to 26 entries with the next beginsWith possibilities */
 	function showBeginsWithTable(data) {
-		var table = d3.selectAll("#citylist table");
-		var rows = table.selectAll("tr").data([]);
-		
-		// first clear out existing rows
-		rows
-			.exit()
-			.remove();
+		var table = d3.selectAll("#citylist table"),
+			currentValue = cityInput.getValue();
 
-		// do rollups by beginsWith
+		// count records by grouping next beginsWith + next character
 		var nodeRollup = d3.nest()
 			.key(function(d) {
 				return d.city.substring(0, cache.beginsWith.length + 1).toLowerCase(); 
@@ -266,7 +262,16 @@
 			.sort(function(a, b) { 
 				return d3.descending(a.count, b.count); 
 			});
+
+		if(nodeRollup.length == 0) {
+			// no cities matched
+			nodeRollup = [{
+				beginsWith: "(no matched cities)",
+				count: 0
+			}];
+		}
 	
+		// count all records
 		var allRollup = d3.nest()
 			.rollup(function(leaves) {
 				return {
@@ -277,34 +282,86 @@
 	
 		var columns = d3.keys(nodeRollup[0]);
 
-		rows = table.selectAll("tr").data(nodeRollup);
+		// databind rows
+		var rows = table.selectAll("tr").data(nodeRollup);
 
+		// enter new rows
 		rows
 			.enter()
 			.append("tr")
+			.on("mouseover", function(datum) {
+				var className = datum.beginsWith.toLowerCase().replace(" ", "-space-");
+				d3.selectAll("circle." + className)
+					.classed("highlight", true);
+			})
+			.on("mouseout", function(datum) {
+				var className = datum.beginsWith.toLowerCase().replace(" ", "-space-");
+				d3.selectAll("circle." + className)
+					.classed("highlight", false);			
+			})
 			.style("opacity", 0.0)			
 			.transition()
 			.duration(1000)
 			.style("opacity", 1.0);
-			
+		
+		// databind cells
 		var cells = rows.selectAll("td")
 			.data(function(d) {
 				return columns.map(function (column) {
 					return { key: column, value: d[column] };
 				});
-			})
+			});
+		
+		// enter new cells
+		cells
 			.enter()
 			.append("td")
-			.text(function (d, i) {
-				var value = d.value;
-				if(i == 1) {
-					value += " (" + (Math.round(d.value * 10000.0 / allRollup.total) / 100) + "%)";
-				}
-				return value;
-			})
 			.attr("class", function(d) {
 				return d.key;
-			});	
+			});
+	
+		// enter + update text
+		cells.html(function (d, i) {
+				var value = d.value,
+					text = "",
+					lastChar;
+
+				if(i == 0) {
+					// first column - text
+					if(currentValue == value) {
+						// exact match
+						text += "\"" + value + "\"";
+					}
+					else if (allRollup.total > 0) {
+						// partial match
+						text = value.substring(0, value.length - 1);
+						lastChar = value.substring(value.length - 1);
+						if(lastChar == " ") lastChar = "[space]";
+						text += "<span class='nextChar'>" + lastChar + "</span>";
+					}
+					else {
+						// no matches
+						text += value;
+					}		
+				}
+				else if (i == 1) {
+					// second column - count and percentage
+					if(allRollup.total > 0)
+						text += value + " <span class='percentage'>(" + (Math.round(value * 10000.0 / allRollup.total) / 100) + "%)</span>";
+				}
+				
+				return text;
+			})
+		
+		// remove invalid cells
+		cells
+			.exit()
+			.remove();
+		
+		// remove invalid rows
+		rows
+			.exit()
+			.remove();
 	}
 	
 /* Events */
@@ -315,6 +372,17 @@
 			.attr("r", function ( datum ) {
 				return datum.radius;
 			});
+	}
+	
+	function onBubbleDraw() {
+		var currentValue = cityInput.getValue(),
+			city = this.data()[0].city,
+			className = city.substring(0, currentValue.length + 1).toLowerCase();
+		
+		className = className.replace(" ", "-space-");
+		
+		// add beginsWith + 1 character as class name
+		this.classed(className, true);
 	}
 
 	function onDataMapLoad(datamap) {
@@ -339,7 +407,7 @@
 		
 		// public methods
 		this.getValue = function() {
-			var val = inputField.attr("value");
+			var val = inputField.property("value");
 			return (val) ? val : "";
 		};
 	

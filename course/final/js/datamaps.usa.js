@@ -46,6 +46,7 @@
         fillOpacity: 0.75,
         animate: true,
         animationComplete: function() {},
+        bubbleDraw: function() {},
         highlightOnHover: true,
         highlightFillColor: '#FC8D59',
         highlightBorderColor: 'rgba(250, 15, 160, 0.2)',
@@ -469,6 +470,10 @@
             //fire off callback when animation is complete
             self.options.bubblesConfig.animationComplete(self, bubbles);
           });
+
+    bubbles.each(function(d, i) {
+      d3.select(bubbles[0][i]).call(self.options.bubblesConfig.bubbleDraw);
+    });
 
     bubbles.exit()
       .transition()
