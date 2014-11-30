@@ -1,6 +1,6 @@
 body {
 	background-color:#eee;
-	font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande". sans-serif;
+	font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
 }
 .container {
 	margin-top:15px;
@@ -12,11 +12,16 @@ body {
 
 }
 #usmap {
-	background-color:#fff;
-	border:1px solid #ccc;
-	border-radius:4px;
 	position:relative;
-	height:600px;
+	height:500px;
+}
+#usmap,
+ #usmap .datamap {
+	background-color:#f0ffff;
+	border-radius:4px;
+}
+#usmap .datamap {
+	border:1px solid #ccc;
 }
 #usmap .datamaps-hoverover .hoverinfo {
 	font-size:.8em !important;
@@ -24,6 +29,7 @@ body {
 #usmap circle.highlight {
 	fill:#cc0000 !important;
 	stroke:red !important;
+	stroke-width: 2px !important;
 }
 #citylist {
 	background-color: #fff;
@@ -33,15 +39,20 @@ body {
 	width: 100%;
 }
 #citylist table {
-	width:100%;
+	width: 100%;
 }
-#citylist table>tr:hover {
+#citylist tr:hover {
 	background-color: #fafad2;
 	cursor:pointer;
 }
 #citylist td {
 	font-size: 0.8em;
 	font-weight: 300;
+	padding-bottom: 0.25em;
+}
+#citylist td:first-child,
+ #citylist td:last-child {
+	padding-left: 0.25em;
 }
 #citylist td.beginsWith {
 	horizontal-align:left;
@@ -61,7 +72,7 @@ body {
 	font-size: 0.8em;
 }
 .timer {
-	font-size:.8em;
+	font-size:.7em;
 }
 
 /* Bootstrap */

@@ -1,5 +1,5 @@
 (function() {
-	var startColor = bubbleFillColor = bubbleBorderColor = "#3399ff", 
+	var startColor = "#3399ff", 
 		highlightColor = "#cc0000",
 		minRadius = currentRadius = 1,
 		maxSampleSize = 5000,
@@ -8,14 +8,14 @@
 			hasChanged: false,
 			interval: null, // object
 			isSet: false,
-			transitionTime: 2500 // milliseconds between changing bubble colors
+			transitionTime: 4000 // milliseconds between changing bubble colors
 		},
 		cityInput = new CityInput(),
 		cache = {
 			data: [],
 			beginsWith: ""
 		},
-		loggingEnabled = false;
+		loggingEnabled = true;
 
 	var map = new Datamap({
 		element: document.getElementById("usmap"),
@@ -102,13 +102,14 @@
 
 	/* resets bubble border/fill colors to match */
 	function resetBubbleColors() {
+      var options = map.options.bubblesConfig;
 		d3.selectAll("circle.datamaps-bubble:not(.highlight)")
 			.transition()
 			.duration(500)
-			.style("fill", bubbleBorderColor)
-			.style("stroke", bubbleBorderColor);
+			.style("fill", options.borderColor)
+			.style("stroke", options.fillColor);
 			
-		toConsole("reset bubble color: " + bubbleBorderColor);
+		toConsole("reset bubble color: " + options.fillColor + "," + options.borderColor);
 		
 		bubbleChange.hasChanged = false;	
 	}
@@ -135,21 +136,18 @@
 		// restart interval
 		bubbleChange.isSet = true;
 		
+		// changes bubble colors after interval has elapsed
 		bubbleChange.interval = setInterval(function() {
-			bubbleFillColor = randomColor();
-			bubbleBorderColor = randomColor("border");
+			var fillColor = randomColor(),
+				borderColor = randomColor("border");
 			
-			toConsole("change bubble color: " + bubbleFillColor + "," + bubbleBorderColor);
-			
-			// update defaults for new bubbles that are drawn
-			map.options.bubblesConfig.fillColor = bubbleFillColor;
-			map.options.bubblesConfig.borderColor = bubbleBorderColor;
+			toConsole("change bubble color: " + fillColor + "," + borderColor);
 
 			d3.selectAll("circle.datamaps-bubble:not(.highlight)")
 				.transition()
 				.duration(1500)
-				.style("fill", bubbleFillColor)
-				.style("stroke", bubbleBorderColor);
+				.style("fill", fillColor)
+				.style("stroke", borderColor);
 			
 			// bubble colors have been changed due to non-activity
 			bubbleChange.hasChanged = true;
@@ -159,6 +157,7 @@
 				datum = JSON.parse($this.attr("data-info")),
 				options = map.options.bubblesOptions,
 				svg = map.svg;
+				
 			// todo: show random popup
 			//map.updatePopup($this, datum, options, svg);
 			
@@ -206,7 +205,7 @@
 				setTimeout(function() {
 					filterCities(allCities, input.value);
 					refreshingMap = false;
-				}, 700);
+				}, 1000);
 			}
 		});
 	}
@@ -377,16 +376,26 @@
 	function onBubbleDraw() {
 		var currentValue = cityInput.getValue(),
 			city = this.data()[0].city,
-			className = city.substring(0, currentValue.length + 1).toLowerCase();
+			className = city.substring(0, currentValue.length + 1).toLowerCase(),
+			classes = this.attr("data-baseClass");
 		
+		// convert spaces to text
 		className = className.replace(" ", "-space-");
 		
+		// save original classes
+		if(!classes) {
+			classes = this.attr("class");
+			this.attr("data-baseClass", classes)
+		};
+		
+		classes += " " + className;
+		
 		// add beginsWith + 1 character as class name
-		this.classed(className, true);
+		this.attr("class", classes);
 	}
 
 	function onDataMapLoad(datamap) {
-		datamap.svg.selectAll('.datamaps-subunit').on('click', function(geo) {
+		datamap.svg.selectAll(".datamaps-subunit").on("click", function(geo) {
 			toConsole(geo.properties.name);
 		});
 		
@@ -394,7 +403,7 @@
 			// this causes the timer that changes bubble colors to be reset 
 			// keeps bubbles the same color when the mouse is moving
 			restartBubbleColorTimer();
-		})
+		});
 		
 		// start the timer
 		restartBubbleColorTimer();

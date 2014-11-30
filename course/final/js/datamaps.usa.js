@@ -452,6 +452,8 @@
         .on('mouseout', function ( datum ) {
           var $this = d3.select(this);
 
+          $this.classed("highlight", false);
+
           if (options.highlightOnHover) {
             //reapply previous attributes
             var previousAttributes = JSON.parse( $this.attr('data-previousAttributes') );
