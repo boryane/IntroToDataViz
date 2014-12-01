@@ -1,50 +1,108 @@
 (function() {
-	var startColor = "#3399ff", 
-		minRadius = 1,
-		maxSampleSize = 5000,
-		csvMapPath = "data/cities.csv",
-		jsonMapPath = "data/cities.json",
-		bubbleChange = {
-			hasChanged: false,
-			interval: null, // object
-			isSet: false,
-			transitionTime: 4000 // milliseconds between changing bubble colors
+	// changeable
+	var 
+		borderColorRange = ["#5f9ea0", "#0000ff"],
+		fillColorRange = ["#00bfff", "#191970"],
+		inactivityTimer = {
+			delayTime: 5000, // milliseconds of no mouse activity before timer starts
+			bubbleTransitionTime: 3000 // milliseconds between changing bubble colors
 		},
+		mapPath = "data/cities.csv",
+		maxSampleSize = 5000,
+		minRadius = 1,
+		loggingEnabled = true,
+		startColor = "#1e50ff";
+
+	// internal
+	var
 		cityInput = new CityInput(),
 		cache = {
 			data: [],
 			beginsWith: ""
 		},
-		loggingEnabled = true;
-
-	var map = new Datamap({
-		element: document.getElementById("usmap"),
-			scope: "usa",
-			geographyConfig: {
-			popupOnHover: false,
-			highlightOnHover: false
-		},
-		bubblesConfig: {
-			animationComplete: onAnimationComplete,
-			bubbleDraw: onBubbleDraw,
-			bubbleMouseOver: onBubbleMouseOver,
-			bubbleRadius: minRadius,
-			borderColor: startColor,
-			borderWidth: 1,
-			fillColor: startColor,
-			fillOpacity: 0.5,	
-			highlightClassName: "highlight",
-			highlightOnHover: true,
-			popupOnHover: true
-		},
-		done: onDataMapLoad		 
-	});
+		map = new Datamap({
+			element: document.getElementById("usmap"),
+				scope: "usa",
+				geographyConfig: {
+				popupOnHover: false,
+				highlightOnHover: false
+			},
+			bubblesConfig: {
+				animationComplete: onAnimationComplete,
+				bubbleDraw: onBubbleDraw,
+				bubbleMouseOver: onBubbleMouseOver,
+				bubbleRadius: minRadius,
+				borderColor: startColor,
+				borderWidth: 1,
+				fillColor: startColor,
+				fillOpacity: 0.5,	
+				highlightClassName: "highlight",
+				highlightOnHover: true,
+				popupOnHover: true
+			},
+			done: onDataMapLoad		 
+		});
 	
 	// load data and initialize Map
-	//d3.json(jsonMapPath, function(data) {setupMap(data, "json");});
-	d3.csv(csvMapPath, function(data) {setupMap(data, "csv");});
+	d3.csv(mapPath, function(data) {setupMap(data, "csv");});
 
 /*** Functions ***/
+
+	function changeBeginsWith(reset) {
+		var list = d3.selectAll("#citylist tr"), 
+			listSizeChanged = (this.listSize != list.size()),
+			highlightItem;
+		
+		if(reset) {
+			// reset (unhighlight)
+			list.each(unHighlightBeginsWith);
+		}
+		else {
+			// change highlighted beginsWith entry
+			this.listSize = list.size();
+
+			if(this.listIndex === undefined || listSizeChanged || (this.listIndex + 1) >= this.listSize)
+				this.listIndex = 0; // initialize or start at the beginning
+			else
+				this.listIndex = this.listIndex + 1; // go to the next list item
+		
+			highlightItem = d3.select(list[0][this.listIndex])
+				.each(highlightBeginsWith);
+
+			list
+				.filter(function(d) {
+					return d.beginsWith != highlightItem.data()[0].beginsWith;
+				})
+				.each(unHighlightBeginsWith);
+
+			toConsole("change beginsWith selection");
+		}
+	}	
+	
+	/* changes bubbles to a new set of random colors within certain color scales */
+	function changeBubbleColors() {
+		var fillColor = randomColor(fillColorRange),
+			borderColor = randomColor(borderColorRange);
+		
+		toConsole("change bubble color: " + fillColor + "," + borderColor);
+
+		d3.selectAll("circle.datamaps-bubble:not(.highlight)")
+			.transition()
+			.duration(inactivityTimer.bubbleTransitionTime)
+			.style("fill", fillColor)
+			.style("stroke", borderColor);
+		
+		// bubble colors have been changed due to non-activity
+		inactivityTimer.isStarted = true;
+		
+		function randomColor(range) {
+			var maxDomain = 40, 
+				randomNumber = Math.floor((Math.random()*maxDomain)+1),
+				scale = d3.scale.linear().domain([1,maxDomain]).range(range);
+				
+			return scale(randomNumber);	
+		}		
+	}	
 	
 	/* updates the data to only show cities beginning with "beginsWith" */
 	function filterCities(data, beginsWith) {
@@ -104,93 +162,123 @@
 		return data;
 	}
 
+	/* converts possible class names to names that are allowable */
+	function getProtectedClassName(className) {
+		// convert spaces to an allowable class name
+		className = className.toLowerCase().replace(/\s/g, "-space-")
+		// replace parenthesis
+		className = className.toLowerCase().replace(/[()]/g, "")
+		return className;
+	}
+
+	/* highlights beginsWith row and related bubbles on map */
+	function highlightBeginsWith() {
+		var $this = d3.select(this),
+			className = getProtectedClassName($this.data()[0].beginsWith), 
+			highlightClassName = map.options.bubblesConfig.highlightClassName;
+
+		// check to make sure that we have a row with data in it
+		if( $this.data()[0].count > 0 ) {
+			// highlight row
+			$this.classed("highlight", true);
+
+			// highlight matching bubbles
+			d3.selectAll("circle." + className).classed("highlight", true);
+
+			// ensures that highlighted bubbles are sorted to the top layer of the map
+			// this prevents a situation where a highlighted city is obscured by an svg circle that was drawn later				
+			d3.selectAll("circle.datamaps-bubble")
+				.sort(function (a, b) {
+					var circle = d3.select("#c" + a.id); 
+					// check to see if bubble has highlight class
+					return (circle && circle.attr("class").split(" ").indexOf(highlightClassName) >= 0) ? 1 : 0;       											  
+				});
+		}			
+	}
+	
+	function unHighlightBeginsWith() {
+		var $this = d3.select(this),
+			className = getProtectedClassName($this.data()[0].beginsWith);
+		
+		// unhighlight row
+		$this.classed("highlight", false);
+		
+		// unhighlight bubbles
+		d3.selectAll("circle." + className).classed("highlight", false);			
+	}
+
 	/* resets bubble border/fill colors to match */
-	function resetBubbleColors() {
+	function resetInactivityChanges() {
       var options = map.options.bubblesConfig;
+      
+      // unhighlight any auto-highlighted begins with entries
+      changeBeginsWith(true);
+      
 		d3.selectAll("circle.datamaps-bubble:not(.highlight)")
 			.transition()
-			.duration(500)
+			.duration(400)
 			.style("fill", options.borderColor)
 			.style("stroke", options.fillColor);
 			
 		toConsole("reset bubble color: " + options.fillColor + "," + options.borderColor);
 		
-		bubbleChange.hasChanged = false;	
+		inactivityTimer.isStarted = false;	
 	}
 
 	/* restarts interval timer to change the color of bubbles on the map */
-	function restartBubbleColorTimer() {
-		if(bubbleChange.hasChanged) resetBubbleColors();
+	function resetInactivityTimer() {
+		// called whenever mouse activity occurs
+		// undo any changes done to the map while the mouse was inactive
+		if(inactivityTimer.isStarted) resetInactivityChanges();
 	
-		if(bubbleChange.isSet) return;
+		// check if inactivity timer has already been set
+		if(inactivityTimer.isPolled) return;
 
+		// prevents clearing the timer excessively (for every move of the mouse)
+		// it causes an inactivity timeout checker to be reset once every 500ms (if there is mouse activity)
 		setTimeout(function() {
-			// this prevents clearing the timer excessively (for every move of the mouse)
-			// it causes an interval reset to occur (at maximum) once every 500ms
-			bubbleChange.isSet = false;
+			inactivityTimer.isPolled = false;
 		}, 500);
+		
+		// clear inactivity timer if it has been set
+		if(inactivityTimer.timerObj) {
+			clearTimeout(inactivityTimer.timerObj);
+			inactivityTimer.timerObj = null;	
+		}
 
-		// clear interval if it was already set
-		if(bubbleChange.interval) {
-			clearInterval(bubbleChange.interval);
-			bubbleChange.interval = null;
-			bubbleChange.isSet = false;
+		// clear transition interval if it has been set
+		if(inactivityTimer.intervalObj) {
+			clearInterval(inactivityTimer.intervalObj);
+			inactivityTimer.intervalObj = null;
 		}
 		
-		// restart interval
-		bubbleChange.isSet = true;
+		// restart inactivity timer
+		inactivityTimer.isPolled = true;
 		
-		// changes bubble colors after interval has elapsed
-		bubbleChange.interval = setInterval(function() {
-			var fillColor = randomColor(),
-				borderColor = randomColor("border");
-			
-			toConsole("change bubble color: " + fillColor + "," + borderColor);
+		// change bubble colors due to mouse inactivity
+		inactivityTimer.timerObj = setTimeout(function() {
+			changeBubbleColors();
+			// interval should be slightly longer than time it takes to transition bubble colors
+			inactivityTimer.intervalObj = setInterval(function() {
+				// auto-select a beginsWith entry
+				changeBeginsWith();
 
-			d3.selectAll("circle.datamaps-bubble:not(.highlight)")
-				.transition()
-				.duration(1500)
-				.style("fill", fillColor)
-				.style("stroke", borderColor);
-			
-			// bubble colors have been changed due to non-activity
-			bubbleChange.hasChanged = true;
-			
-			// change popup hover
-			var $this = d3.select("circle"),
-				datum = JSON.parse($this.attr("data-info")),
-				options = map.options.bubblesOptions,
-				svg = map.svg;
-				
-			// todo: show random popup
-			//map.updatePopup($this, datum, options, svg);
-			
-			function randomColor(type) {
-				var random = Math.floor((Math.random()*50)+1),
-					start, end;
-					
-				if(type == "border") {
-					start = startColor;
-					end = "#cc00cc";
-				} else {
-					start = "#ff5c00";
-					end = "#ffd300";
-				}
-					scale = d3.scale.linear().domain([1,50]).range([start, end]);
-				return scale(random);		
-			}			
-		}, bubbleChange.transitionTime);	
+				// change bubble colors
+				changeBubbleColors();
+			}, inactivityTimer.bubbleTransitionTime + 500);
+		}, inactivityTimer.delayTime);
+		
+		// restart timer on mouse movement
+		d3.select("body").on("mousemove", arguments.callee);
 	}
 
 	/* reduces dataset size, so as not to overwhelm the map with too many data points */
 	function sampleData(data) {
-		// todo: try to add population
 		return _.sample(data, maxSampleSize);
 	}
 
 	/* sets up the initial map after a dataset has been loaded from JSON or CSV */
 	function setupMap(data, type) {
-	
 		// format the data for the topojson format
 		var allCities = formatToDataMaps(data, type),
 			refreshingMap = false;
@@ -199,54 +287,29 @@
 		filterCities(allCities, cityInput.getValue());
 
 		// event handler for when city name is changed
-		cityInput.onChange(function(input) {
+		cityInput.onChange(function() {
+			var self = this;
+
 			// restart color changer
-			restartBubbleColorTimer();
+			resetInactivityTimer();
 			
 			// prevents the map from being repeatedly refreshed when 
 			// multiple input events are fired in a short period
 			if(!refreshingMap) {
 				refreshingMap = true;
 				setTimeout(function() {
-					filterCities(allCities, input.value);
+					filterCities(allCities, self.value);
 					refreshingMap = false;
-				}, 1000);
+				}, 800);
 			}
+		});
+		
+		d3.select("button.reset").on("click", function() {
+			cityInput.reset();
 		});
 	}
 	
- 	/* logs text to console if logging is enabled */
-	function toConsole(text) {
-		if(loggingEnabled) console.log(text);
-	}	
-	
-	/* calls the DataMap library to refresh the bubbles on map */
-	function updateDataMap(data) {
-		var radiusScale = d3.scale.pow().exponent(.2)
-			.domain([1, maxSampleSize])
-			.rangeRound([10, minRadius]);
-		
-
-		// set new bubble radius based on # of bubbles on map
-		map.options.bubblesConfig.bubbleRadius = radiusScale(data.length);
-		
-		map.bubbles(data, {
-			popupTemplate: function (geo) {
-				return '<div class="hoverinfo">' + geo.city +
-					', ' + geo.state + '</div>';
-			}
-		})
-			.attr("id", function(d) {return d.id;});		
-	} 
-
-	/* updates the text statistics below the graph */
-	function updateStats(data, timer) {
-		timer.stop();
-		d3.selectAll(".execution_time").text(timer.time);
-		d3.selectAll(".record_count").text(data.length);
-	}
-	
-	/* shows table of up to 26 entries with the next beginsWith possibilities */
+	/* shows table of city counts based on the next beginsWith character */
 	function showBeginsWithTable(data) {
 		var table = d3.selectAll("#citylist table"),
 			currentValue = cityInput.getValue();
@@ -291,24 +354,8 @@
 		rows
 			.enter()
 			.append("tr")
-			.on("mouseover", function(datum) {
-				var className = datum.beginsWith.toLowerCase().replace(" ", "-space-");
-				d3.selectAll("circle." + className)
-					.classed("highlight", true);
-				
-				/*
-				bubbles
-					.sort(function (a, b) { // select the parent and sort the path's
-						if ( (a.city + a.state) != (datum.city + datum.state) ) return -1;  // a is not the hovered element, send "a" to the back
-						else return 1;                    											  // a is the hovered element, bring "a" to the front
-					});
-				*/					
-			})
-			.on("mouseout", function(datum) {
-				var className = datum.beginsWith.toLowerCase().replace(" ", "-space-");
-				d3.selectAll("circle." + className)
-					.classed("highlight", false);			
-			})
+			.on("mouseover",  highlightBeginsWith)
+			.on("mouseout", unHighlightBeginsWith)
 			.style("opacity", 0.0)			
 			.transition()
 			.duration(1000)
@@ -372,6 +419,36 @@
 		rows
 			.exit()
 			.remove();
+	}	
+	
+ 	/* logs text to console if logging is enabled */
+	function toConsole(text) {
+		if(loggingEnabled) console.log(text);
+	}	
+	
+	/* calls the DataMap library to refresh the bubbles on map */
+	function updateDataMap(data) {
+		var radiusScale = d3.scale.pow().exponent(.2)
+			.domain([1, maxSampleSize])
+			.rangeRound([10, minRadius]);
+		
+		// set new bubble radius based on # of bubbles on map
+		map.options.bubblesConfig.bubbleRadius = radiusScale(data.length);
+		
+		map.bubbles(data, {
+			popupTemplate: function (geo) {
+				return '<div class="hoverinfo">' + geo.city +
+					', ' + geo.state + '</div>';
+			}
+		})
+			.attr("id", function(d) {return "c" + d.id;});		
+	} 
+
+	/* updates the text statistics below the graph */
+	function updateStats(data, timer) {
+		timer.stop();
+		d3.selectAll(".execution_time").text(timer.time);
+		d3.selectAll(".record_count").text(data.length);
 	}
 	
 /* Events */
@@ -382,11 +459,8 @@
 	function onBubbleDraw() {
 		var currentValue = cityInput.getValue(),
 			city = this.data()[0].city,
-			className = city.substring(0, currentValue.length + 1).toLowerCase(),
+			className = getProtectedClassName(city.substring(0, currentValue.length + 1)),
 			classes = this.attr("data-baseClass");
-		
-		// convert spaces to text
-		className = className.replace(" ", "-space-");
 		
 		// save original classes
 		if(!classes) {
@@ -411,24 +485,20 @@
 	}
 
 	function onDataMapLoad(datamap) {
+		// debugging - write state to console
 		datamap.svg.selectAll(".datamaps-subunit").on("click", function(geo) {
 			toConsole(geo.properties.name);
 		});
-		
-		d3.select("body").on("mousemove", function() {
-			// this causes the timer that changes bubble colors to be reset 
-			// keeps bubbles the same color when the mouse is moving
-			restartBubbleColorTimer();
-		});
-		
-		// start the timer
-		restartBubbleColorTimer();
+
+		// start inactivity timer 
+		// (inactivity causes bubbles to change color and other automatic activities)
+		resetInactivityTimer();
 	}			
 
 /* CityInput Class */
 	function CityInput() {
 		var inputField = d3.select("#city"),
-			onChangeCallback;
+			onChangeCallback = function() {};
 		
 		// public methods
 		this.getValue = function() {
@@ -440,7 +510,13 @@
 			onChangeCallback = callback;
 		}
 
-		this.setValue = function(value){
+		this.reset = function() {
+			this.setValue("");
+			setValueToSession(this.value);
+			onChangeCallback.apply(this);
+		}
+
+		this.setValue = function(value) {
 			inputField.attr("value", value);
 		};
 	
@@ -467,7 +543,7 @@
 		// event handler for when input field changes
 		inputField.on("input", function() {
 			setValueToSession(this.value);
-			(typeof onChangeCallback === "function") && onChangeCallback(this);
+			onChangeCallback.apply(this);
 		});
 	}
 

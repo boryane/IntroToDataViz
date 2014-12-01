@@ -21,16 +21,16 @@ body {
 	border-radius:4px;
 }
 #usmap .datamap {
-	border:1px solid #ccc;
+	border: 1px solid #ccc;
 }
 #usmap .datamaps-hoverover .hoverinfo {
-	font-size:.8em !important;
+	font-size: 0.8em !important;
 }
 #usmap circle.highlight {
-	fill: #c00 !important;
-	fill-opacity: 0.5 !important;
-	stroke: red !important;
-	stroke-width: 2px !important;
+	fill: #ffe700 !important;
+	fill-opacity: 0.75 !important;
+	stroke: #ff4500 !important;
+	stroke-width: 1px !important;
 }
 #citylist {
 	background-color: #fff;
@@ -42,9 +42,9 @@ body {
 #citylist table {
 	width: 100%;
 }
-#citylist tr:hover {
-	background-color: #fafad2;
-	cursor:pointer;
+#citylist tr.highlight {
+	background-color: #ffffe0;
+	cursor: pointer;
 }
 #citylist td {
 	font-size: 0.8em;
@@ -60,7 +60,7 @@ body {
 	width:95%;
 }
 #citylist td.beginsWith .nextChar {
-	color: #c00;
+	color: #ff4500;
 	font-weight: 600;
 }
 #citylist td.count {
