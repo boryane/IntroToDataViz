@@ -23,6 +23,16 @@ body {
 #usmap .datamap {
 	border: 1px solid #ccc;
 }
+#usmap .datamap .labels text {
+	font-size: 0.6em;
+}
+#usmap .datamap .labels rect {
+	fill: #ffffff;
+	fill-opacity: 0.5;
+	font-size: 0.6em;
+	stroke: #999;
+	stroke-width: 1px;
+}
 #usmap .datamaps-hoverover .hoverinfo {
 	font-size: 0.8em !important;
 }

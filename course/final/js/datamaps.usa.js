@@ -492,7 +492,7 @@
         });
 
     bubbles.each(function(d, i) {
-      d3.select(bubbles[0][i]).call(self.options.bubblesConfig.bubbleDraw);
+      self.options.bubblesConfig.bubbleDraw.apply(bubbles[0][i]);
     });
 
     bubbles.exit()
