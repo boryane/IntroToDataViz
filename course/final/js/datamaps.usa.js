@@ -458,7 +458,7 @@
           }
           
           // event callback
-          options.bubbleMouseOver.apply($this, [bubbles]);
+          options.bubbleMouseOver.apply($this);
         })
         .on('mouseout', function ( datum ) {
           var $this = d3.select(this);

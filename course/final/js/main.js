@@ -49,7 +49,7 @@
 
 /*** Functions ***/
 
-	/* automatically picks a beginsWith entry and highlights corresponding bubbles (cities) */
+	/* automatically picks a beginsWith row and highlights corresponding bubbles (cities) */
 	function changeBeginsWith(reset) {
 		var list = d3.selectAll("#citylist tr"), 
 			listSizeChanged = (this.listSize != list.size()),
@@ -165,24 +165,33 @@
 		return data;
 	}
 
+	/* returns a valid CSS classname that is derived from a partial or exact beginsWith key */
+	function getBeginsWithClassName(value, length) {
+		var length = (length === undefined) ? value.length : length,
+			className = value.substring(0, length).toLowerCase();
+		
+		if(value.length == (length - 1))
+			// exact match, use "__" to represent exact string match
+			className = "__" + className + "__";
+
+		// convert multiple spaces to an allowable "class" name
+		className = className.toLowerCase().replace(/\s+/g, "-space-");
+		
+		// replace parenthesis
+		className = className.replace(/[()]/g, "");
+
+		return className;
+	}
+
 	/* gets a specific data value from a D3 selection */
 	function getDataValue(selection, key) {
 		return selection.data()[0][key];
 	}
 
-	/* converts possible class names to names that are allowable */
-	function getProtectedClassName(className) {
-		// convert spaces to an allowable class name
-		className = className.toLowerCase().replace(/\s/g, "-space-")
-		// replace parenthesis
-		className = className.toLowerCase().replace(/[()]/g, "")
-		return className;
-	}
-
 	/* highlights beginsWith row and related bubbles on map */
 	function highlightBeginsWith() {
 		var row = d3.select(this),
-			className = getProtectedClassName(getDataValue(row, "beginsWith")), 
+			beginsWithClassName = row.attr("id"), 
 			highlightClassName = map.options.bubblesConfig.highlightClassName,
 			labelPadding = 2;
 
@@ -191,53 +200,49 @@
 			// highlight row
 			row.classed(highlightClassName, true);
 
-			// highlight matching bubbles
-			d3.selectAll("circle." + className).classed(highlightClassName, true);
+			// parent node of bubbles
+			var bubblesNode = d3.select(".bubbles").node();	
 
-			// ensures that highlighted bubbles are sorted to the top layer of the map
-			// this prevents a situation where a highlighted city is obscured by an svg circle that was drawn later				
-			var bubbleList = d3.selectAll("circle.datamaps-bubble")
-				.sort(function (a, b) {
-					return matchesCircle(a, highlightClassName);       											  
-				});
+			var bubbleList = d3.selectAll("circle.datamaps-bubble." + beginsWithClassName)
+				// highlight matching bubbles
+				.classed(highlightClassName, true)			
+				// moves highlighted bubbles to the end of their parent element to ensure they are visible
+				// (svg elements are layered by DOM order)
+				.remove()
+				.each(function(d) {
+					bubblesNode.appendChild(this);
+				});					
 			
-			// filter list to only get a random set of bubbles that are highlighted
-			bubbleList = d3.shuffle(
-				bubbleList
-					.filter(function(d) {
-						return matchesCircle(d, highlightClassName);
-					})
-				).filter(function(d, i) {
-					// maximum of 30 records
+			// randomize bubble order
+			bubbleList = d3.shuffle(bubbleList)
+				// maximum of 30 bubbles at a time
+				.filter(function(d, i) {
 					return (i <= 30);
+				})
+				// map fields that will be used in labels
+				.data().map(function(d) {
+					var circle = getCircle(d),
+						rect = circle.node().getBoundingClientRect();
+					return {
+						id: d.id,
+						cx: parseInt(circle.attr("cx")),
+						cy: parseInt(circle.attr("cy")),
+						r: parseInt(circle.attr("r")),
+						x: rect.left,
+						y: rect.top,
+						text: d.city + ", " + d.state
+					};
 				});
-			
-			bubbleList = bubbleList.data().map(function(d) {
-				var circle = getCircle(d),
-					rect = circle.node().getBoundingClientRect();
-				return {
-					id: d.id,
-					cx: parseInt(circle.attr("cx")),
-					cy: parseInt(circle.attr("cy")),
-					r: parseInt(circle.attr("r")),
-					x: rect.left,
-					y: rect.top,
-					text: d.city + ", " + d.state
-				};
-			});
 			
 			var labels = map.svg.selectAll("g.labels")
-				.selectAll("g.label")
+				.selectAll("g")
 				.data(bubbleList);
 			
 			labels
 				.enter()
-				.append("g");
-
-			// remove any unhighlighted labels
-			labels
-				.exit()
-				.remove();
+				.append("g")
+				.attr("class", beginsWithClassName)
+				.style("fill-opacity", 0);
 
 			// add label text
 			var texts = labels
@@ -266,6 +271,17 @@
 						.attr("width", bbox.width + (labelPadding * 2))
 						.attr("height", bbox.height + (labelPadding))
 				});
+
+			// remove any unhighlighted labels
+			labels
+				.exit()
+				.remove();	
+
+			// add "show" effect
+			labels
+				.transition()
+				.duration(150)
+				.style("fill-opacity", "1");
 		}
 		
 		function getCircle(datum) {
@@ -279,18 +295,18 @@
 	}
 	
 	function unHighlightBeginsWith() {
-		var $this = d3.select(this),
-			className = getProtectedClassName(getDataValue($this, "beginsWith")), 
+		var row = d3.select(this),
+			beginsWithClassName = row.attr("id"), 
 			highlightClassName = map.options.bubblesConfig.highlightClassName;
 		
 		// unhighlight row
-		$this.classed(highlightClassName, false);
+		row.classed(highlightClassName, false);
 		
-		// remove highlighted labels
-		d3.selectAll("g.labels g").remove();
+		// remove highlighted label elements
+		d3.selectAll("g.labels g." + beginsWithClassName).remove();
 		
 		// unhighlight bubbles
-		d3.selectAll("circle." + className).classed(highlightClassName, false);			
+		d3.selectAll("circle.datamaps-bubble." + beginsWithClassName).classed(highlightClassName, false);			
 	}
 
 	/* resets bubble border/fill colors to match */
@@ -373,7 +389,7 @@
 	 	// update bubbles on map
 		filterCities(allCities, cityInput.getValue());
 
-	 	// add labels element
+	 	// add labels group element
 		map.svg.append("g").attr("class", "labels"); 
 
 		// event handler for when city name is changed
@@ -401,18 +417,21 @@
 	
 	/* shows table of city counts based on the next beginsWith character */
 	function showBeginsWithTable(data) {
-		var table = d3.selectAll("#citylist table"),
-			currentValue = cityInput.getValue();
+		var table = d3.selectAll("#citylist table");
 
 		// count records by grouping next beginsWith + next character
 		var nodeRollup = d3.nest()
 			.key(function(d) {
-				return d.city.substring(0, cache.beginsWith.length + 1).toLowerCase(); 
+				//debugger;
+				return getBeginsWithClassName(d.city, cache.beginsWith.length + 1); 
 			})
 			.rollup(function(leaves) {return leaves.length;})
 			.entries(data)
 			.map(function(d) {
-				return {beginsWith: d.key, count: d.values};			
+				return {
+					beginsWith: d.key, 
+					count: d.values
+				};			
 			})
 			.sort(function(a, b) { 
 				return d3.descending(a.count, b.count); 
@@ -421,7 +440,7 @@
 		if(nodeRollup.length == 0) {
 			// no cities matched
 			nodeRollup = [{
-				beginsWith: "(no matched cities)",
+				key: "(no matched cities)",
 				count: 0
 			}];
 		}
@@ -446,16 +465,25 @@
 			.append("tr")
 			.on("mouseover",  highlightBeginsWith)
 			.on("mouseout", unHighlightBeginsWith)
-			.style("opacity", 0.0)			
+
+		
+		// enter + update
+		rows.attr("id", function(d) {
+				return d.beginsWith;
+			})
+			.style("opacity", 0)			
 			.transition()
-			.duration(1000)
-			.style("opacity", 1.0);
+			.duration(500)
+			.style("opacity", 1);
 		
 		// databind cells
 		var cells = rows.selectAll("td")
 			.data(function(d) {
 				return columns.map(function (column) {
-					return { key: column, value: d[column] };
+					return {
+						key: column, 
+						value: d[column]
+					};
 				});
 			});
 		
@@ -475,15 +503,18 @@
 
 			if(i == 0) {
 				// first column - text
-				if(currentValue == value) {
-					// exact match
-					text += "\"" + value + "\"";
+
+				// replace unfriendly characters for display in UI
+				value = value.replace(/__/g, "\"").replace(/-space-/, " ");
+				
+				if(value.slice(-1) == "\"") {
+					// exact match due to last character being "
+					text += value;
 				}
 				else if (allRollup.total > 0) {
 					// partial match
 					text = value.substring(0, value.length - 1);
-					lastChar = value.substring(value.length - 1);
-					if(lastChar == " ") lastChar = "[space]";
+					lastChar = value.slice(-1).replace(" ", "[space]");
 					text += "<span class='nextChar'>" + lastChar + "</span>";
 				}
 				else {
@@ -500,14 +531,9 @@
 			return text;
 		});
 		
-		// remove invalid cells
-		cells
-			.exit()
-			.remove();
-		
-		// remove invalid rows
+		// remove unbound rows
 		rows
-			.exit()
+			.exit()		
 			.remove();
 	}	
 	
@@ -550,7 +576,7 @@
 		var $this = d3.select(this),
 			currentValue = cityInput.getValue(),
 			city = getDataValue($this, "city"),
-			className = getProtectedClassName(city.substring(0, currentValue.length + 1)),
+			className = getBeginsWithClassName(city, currentValue.length + 1),
 			classes = $this.attr("data-baseClass");
 		
 		// save original classes
@@ -565,13 +591,12 @@
 		$this.attr("class", classes);
 	}
 	
-	function onBubbleMouseOver(bubbles) {
-		var self = this;
-		// sorts bubbles so that "hovered" ones are placed on top of non-hovered	
-		bubbles
-			.sort(function (a, b) {
-				if ( a.id != self.attr("id") ) return -1;  // a is not the hovered element, send "a" to the back
-				else return 1;                             // a is the hovered element, bring "a" to the front
+	function onBubbleMouseOver() {
+		// move current bubble to the end of the parent element, so that it is fully visible
+		d3.select(this)
+			.remove()
+			.each(function(d) {
+				d3.select(".bubbles").node().appendChild(this.node());
 			});	
 	}
 
