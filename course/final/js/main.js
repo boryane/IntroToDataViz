@@ -205,6 +205,9 @@
 
 		// refresh bubbles on map	
 		updateDataMap(cache.data);
+
+		// fire data refreshed event
+		onDataRefreshed();
 		
 		// show table on right side
 		var tableData = (cache.data.length < maxSampleSize) ? cache.data : data;
@@ -215,13 +218,13 @@
 		showBeginsWithTable(tableData);
 		
 		// update text stats at bottom of map		
-		updateStats(cache.data, timer);	
+		updateStats(cache.data, timer);
 	}
 	
 	/* formats csv or json data to DataMaps format */
 	function formatToDataMaps(data, type) {
 		if (type == "json") {
-			// only json needs to be re-mapped due to shorter field names to save file space
+			// only json needs to be re-mapped due to shorter field names to save file space (lodash)
 			data = _.map(data, function(row) {
 				return {
 					id: row.id,
@@ -301,14 +304,10 @@
 					bubblesNode.appendChild(this);
 				});					
 			
-			// randomize bubble order
-			bubbleList = d3.shuffle(bubbleList)
-				// maximum of 30 bubbles at a time
-				.filter(function(d, i) {
-					return (i <= 30);
-				});
+			// sample a random subset of bubbles (lodash)
+			bubbleList = _.sample(bubbleList.data(), 30)
 			
-			drawLabelBoxes(bubbleList.data(), beginsWithClassName);
+			drawLabelBoxes(bubbleList, beginsWithClassName);
 		}
 	}
 	/* removes highlighted beginsWith row and matching bubbles */
@@ -394,16 +393,16 @@
 		
 		// lodash chaining
 		return _(data)
-			// grouping by city beginsWith
+			.chain()
+			// group by city beginsWith
 			.groupBy(function(d) {
 				return d.city.slice(0, groupByLength).toLowerCase();
 			})
-			// filtering to nodes that have less than 500 entries
-			// this ensures that nodes with few entries will be represented on the map
-			.filter(function(d) {return (d.length <= 100);})
-			// merging back into single array
-			.flatten()
-			// adding in a sample (random set) of the entire dataset
+			// include at least 30 entries for each group
+			.reduce(function(result, d) {
+				return result.concat(d.slice(0, 30));
+			}, [])
+			// add in a sample (random set) of the entire dataset
 			.union(
 				_.sample(data, maxSampleSize)
 			)
@@ -603,8 +602,6 @@
 
 	/* fires when animation changes (such as bubble drawing) on map have completed */
 	function onAnimationComplete() {
-		// hides loading animation
-		hideLoader();	
 	}
 	
 	/* fires when a bubble is drawn to the map */
@@ -643,6 +640,8 @@
 
 		// return opacity to their original state
 		d3.selectAll("g.bubbles circle")
+			.transition()
+			.delay(200)
 			.style("opacity", null);
 
 		// remove highlighted label element
@@ -675,10 +674,15 @@
 			.attr("r", newRadius);
 
 		// reduce opacity of non-highlighted bubbles
-		d3.selectAll("g.bubbles circle:not(#" + bubbleId + ")")
-			.style("opacity", 0.4);
+		d3.selectAll("g.bubbles circle:not(#" + bubbleId + ")")	
+			.style("opacity", 0.5);
 		
 		drawLabelBoxes(bubble.data(), bubbleId);		
+	}
+	
+	function onDataRefreshed() {
+		// hides loading animation
+		hideLoader();		
 	}
 
 	/* fires when the data map is first loaded */
