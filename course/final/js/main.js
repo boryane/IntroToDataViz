@@ -628,21 +628,21 @@
 	function onBubbleMouseOut() {
 		var bubble = d3.select(this),
 			bubbleId = bubble.attr("id"),
-			options = map.options.bubblesConfig;
+			options = map.options.bubblesConfig,
+			radius = bubble.attr("data-originalRadius");
 
 		// restore bubble to original size
 		bubble
 			.classed(options.highlightClassName, false)
 			.style("fill-opacity", options.fillOpacity)		
 			.transition()
-			.duration(500)
-			.attr("r", bubble.attr("data-originalRadius"));
-
-		// return opacity to their original state
-		d3.selectAll("g.bubbles circle")
-			.transition()
-			.delay(200)
-			.style("opacity", null);
+			.duration(400)
+			.attr("r", radius)
+			.each(function() {
+				// return opacity to their original state
+				d3.selectAll("g.bubbles circle")
+					.style("opacity", null);			
+			});
 
 		// remove highlighted label element
 		d3.selectAll("g.labels g." + bubbleId).remove();	
@@ -668,7 +668,8 @@
 			.attr("data-originalRadius", originalRadius)
 			// save new radius so that it can be accessed in drawLabelBoxes
 			.attr("data-newRadius", newRadius)
-			.style("fill-opacity", "1")
+			.style("opacity", 1)
+			.style("fill-opacity", 1)
 			.transition()
 			.duration(200)
 			.attr("r", newRadius);
