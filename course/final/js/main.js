@@ -1,5 +1,5 @@
 (function() {
-	// changeable
+	// changeable settings
 	var 
 		borderColorRange = ["#5f9ea0", "#0000ff"],
 		fillColorRange = ["#00bfff", "#191970"],
@@ -31,6 +31,7 @@
 			bubblesConfig: {
 				animationComplete: onAnimationComplete,
 				bubbleDraw: onBubbleDraw,
+				bubbleMouseOut: onBubbleMouseOut,
 				bubbleMouseOver: onBubbleMouseOver,
 				bubbleRadius: minRadius,
 				borderColor: startColor,
@@ -38,8 +39,8 @@
 				fillColor: startColor,
 				fillOpacity: 0.5,	
 				highlightClassName: "highlight",
-				highlightOnHover: true,
-				popupOnHover: true
+				highlightOnHover: false,
+				popupOnHover: false
 			},
 			done: onDataMapLoad		 
 		});
@@ -50,7 +51,7 @@
 /*** Functions ***/
 
 	/* automatically picks a beginsWith row and highlights corresponding bubbles (cities) */
-	function changeBeginsWith(reset) {
+	function changeBeginsWithTable(reset) {
 		var list = d3.selectAll("#citylist tr"), 
 			listSizeChanged = (this.listSize != list.size()),
 			highlightItem;
@@ -106,6 +107,75 @@
 			return scale(randomNumber);	
 		}		
 	}	
+
+	/* draws text label boxes next to bubbles on the map */
+	function drawLabelBoxes(data, className) {
+		var labelPadding = 3,
+			count = data.length;
+
+		// map fields that will be used in labels
+		data = data.map(function(d) {
+			var bubble = d3.select("#c-" + d.id),
+				rect = bubble.node().getBoundingClientRect(),
+				radius = bubble.attr("data-newRadius") || bubble.attr("r");
+			return {
+				id: d.id,
+				cx: parseInt(bubble.attr("cx")),
+				cy: parseInt(bubble.attr("cy")),
+				r: parseInt(radius),
+				x: rect.left,
+				y: rect.top,
+				text: d.city + ", " + d.state
+			};
+		});
+		
+		var labels = map.svg.selectAll("g.labels")
+			.selectAll("g." + className)
+			.data(data);
+		
+		// enter
+		labels
+			.enter()
+			.append("g")
+			.attr("id", function(d) {
+				return "l-" + d.id;
+			})
+			.attr("class", className);
+
+		// add label text
+		var texts = labels
+			.append("text")
+			.attr("dx", function(d) {
+				return d.cx + d.r + (labelPadding + 2);
+			})
+			.attr("dy", function(d) {
+				return d.cy + (d.r / 2);
+			})
+			.text(function(d) {
+				return d.text;
+			});
+
+		// add label box
+		texts
+			.each(function(d) {
+				var bbox = this.getBBox(),
+					fillOpacity = (className.indexOf("c-") == 0) ? 1 : null;
+				var rect = d3.select(this.parentNode)
+					.insert("rect", ":first-child")
+					.attr("x", bbox.x - labelPadding)
+					.attr("y", bbox.y - (labelPadding / 2))
+					.attr("width", bbox.width + (labelPadding * 2))
+					.attr("height", bbox.height + (labelPadding));
+					
+				// increases opacity of bubbles that have been highlighted via a mouseover
+				rect.style("fill-opacity", fillOpacity);
+			});
+
+		// remove any unhighlighted labels
+		labels
+			.exit()
+			.remove();	
+	}
 	
 	/* updates the data to only show cities beginning with "beginsWith" */
 	function filterCities(data, beginsWith) {
@@ -126,7 +196,7 @@
 					var city = row.city.toLowerCase();
 					return (city.indexOf(cache.beginsWith) == 0);
 				})
-			);
+			, cache.beginsWith);
 		} else {
 			// empty city search, sample from all data
 			cache.beginsWith = "";
@@ -188,12 +258,30 @@
 		return selection.data()[0][key];
 	}
 
-	/* highlights beginsWith row and related bubbles on map */
+	/* hide loading animation */
+	function hideLoader() {
+		d3.select(".loader")
+			.style("opacity", 1)
+			.transition()
+			.duration(300)
+			.style("opacity", 0)
+			.transition()
+			.duration(100)
+			.style("display", "none");	
+	}
+	/* show loading animation */
+	function showLoader() {
+		d3.select(".loader")
+			.interrupt()
+			.style("opacity", 1)
+			.style("display", "block");	
+	}
+
+	/* highlights beginsWith row and related bubbles */
 	function highlightBeginsWith() {
 		var row = d3.select(this),
 			beginsWithClassName = row.attr("id"), 
-			highlightClassName = map.options.bubblesConfig.highlightClassName,
-			labelPadding = 2;
+			highlightClassName = map.options.bubblesConfig.highlightClassName;
 
 		// check to make sure that we have a row with data in it
 		if( getDataValue(row, "count") > 0 ) {
@@ -201,7 +289,7 @@
 			row.classed(highlightClassName, true);
 
 			// parent node of bubbles
-			var bubblesNode = d3.select(".bubbles").node();	
+			var bubblesNode = d3.select("g.bubbles").node();	
 
 			var bubbleList = d3.selectAll("circle.datamaps-bubble." + beginsWithClassName)
 				// highlight matching bubbles
@@ -218,82 +306,12 @@
 				// maximum of 30 bubbles at a time
 				.filter(function(d, i) {
 					return (i <= 30);
-				})
-				// map fields that will be used in labels
-				.data().map(function(d) {
-					var circle = getCircle(d),
-						rect = circle.node().getBoundingClientRect();
-					return {
-						id: d.id,
-						cx: parseInt(circle.attr("cx")),
-						cy: parseInt(circle.attr("cy")),
-						r: parseInt(circle.attr("r")),
-						x: rect.left,
-						y: rect.top,
-						text: d.city + ", " + d.state
-					};
 				});
 			
-			var labels = map.svg.selectAll("g.labels")
-				.selectAll("g")
-				.data(bubbleList);
-			
-			labels
-				.enter()
-				.append("g")
-				.attr("class", beginsWithClassName)
-				.style("fill-opacity", 0);
-
-			// add label text
-			var texts = labels
-				.append("text")
-				.attr("dx", function(d) {
-					var cx = d.cx + d.r + (labelPadding + 2);
-					return cx;
-				})
-				.attr("dy", function(d) {
-					var cy = d.cy + (d.r / 2);
-					return cy;
-				})
-				.text(function(d) {
-					return d.text;
-				});
-			
-			// add label box
-			texts
-				.each(function(d) {
-    				var bbox = this.getBBox();
-
-					d3.select(this.parentNode)
-						.insert("rect", ":first-child")
-						.attr("x", bbox.x - labelPadding)
-						.attr("y", bbox.y - (labelPadding - 1))
-						.attr("width", bbox.width + (labelPadding * 2))
-						.attr("height", bbox.height + (labelPadding))
-				});
-
-			// remove any unhighlighted labels
-			labels
-				.exit()
-				.remove();	
-
-			// add "show" effect
-			labels
-				.transition()
-				.duration(150)
-				.style("fill-opacity", "1");
-		}
-		
-		function getCircle(datum) {
-			return d3.select("#c" + datum.id)
-		}	
-		function matchesCircle(datum, className) {
-			var circle = getCircle(datum);
-			// check to see if bubble has highlight class
-			return (circle && circle.attr("class").split(" ").indexOf(className) >= 0) ? 1 : 0;
+			drawLabelBoxes(bubbleList.data(), beginsWithClassName);
 		}
 	}
-	
+	/* removes highlighted beginsWith row and matching bubbles */
 	function unHighlightBeginsWith() {
 		var row = d3.select(this),
 			beginsWithClassName = row.attr("id"), 
@@ -314,7 +332,7 @@
       var options = map.options.bubblesConfig;
       
       // unhighlight any auto-highlighted begins with entries
-      changeBeginsWith(true);
+      changeBeginsWithTable(true);
       
 		d3.selectAll("circle.datamaps-bubble:not(.highlight)")
 			.transition()
@@ -357,17 +375,13 @@
 		// restart inactivity timer
 		inactivityTimer.isPolled = true;
 		
-		// change bubble colors due to mouse inactivity
+		// set timeout when no mouse activity is detected
 		inactivityTimer.timerObj = setTimeout(function() {
-			changeBubbleColors();
+			onMouseInactive();
 			// interval should be slightly longer than time it takes to transition bubble colors
-			inactivityTimer.intervalObj = setInterval(function() {
-				// auto-select a beginsWith entry
-				changeBeginsWith();
-
-				// change bubble colors
-				changeBubbleColors();
-			}, inactivityTimer.bubbleTransitionTime + 500);
+			inactivityTimer.intervalObj = setInterval(
+				onMouseInactive, 
+				inactivityTimer.bubbleTransitionTime + 500);
 		}, inactivityTimer.delayTime);
 		
 		// restart timer on mouse movement
@@ -375,8 +389,25 @@
 	}
 
 	/* reduces dataset size, so as not to overwhelm the map with too many data points */
-	function sampleData(data) {
-		return _.sample(data, maxSampleSize);
+	function sampleData(data, beginsWith) {
+		groupByLength = (beginsWith || "").length + 1;
+		
+		// lodash chaining
+		return _(data)
+			// grouping by city beginsWith
+			.groupBy(function(d) {
+				return d.city.slice(0, groupByLength).toLowerCase();
+			})
+			// filtering to nodes that have less than 500 entries
+			// this ensures that nodes with few entries will be represented on the map
+			.filter(function(d) {return (d.length <= 100);})
+			// merging back into single array
+			.flatten()
+			// adding in a sample (random set) of the entire dataset
+			.union(
+				_.sample(data, maxSampleSize)
+			)
+			.value();
 	}
 
 	/* sets up the initial map after a dataset has been loaded from JSON or CSV */
@@ -396,6 +427,9 @@
 		cityInput.onChange(function() {
 			var self = this;
 
+			// shows loading animation
+			showLoader();
+
 			// restart color changer
 			resetInactivityTimer();
 			
@@ -406,7 +440,7 @@
 				setTimeout(function() {
 					filterCities(allCities, self.value);
 					refreshingMap = false;
-				}, 800);
+				}, 1000);
 			}
 		});
 		
@@ -417,12 +451,12 @@
 	
 	/* shows table of city counts based on the next beginsWith character */
 	function showBeginsWithTable(data) {
-		var table = d3.selectAll("#citylist table");
+		var table = d3.selectAll("#citylist table"),
+			totalRecords = data.length;
 
 		// count records by grouping next beginsWith + next character
 		var nodeRollup = d3.nest()
 			.key(function(d) {
-				//debugger;
 				return getBeginsWithClassName(d.city, cache.beginsWith.length + 1); 
 			})
 			.rollup(function(leaves) {return leaves.length;})
@@ -430,29 +464,21 @@
 			.map(function(d) {
 				return {
 					beginsWith: d.key, 
-					count: d.values
+					count: d.values,
+					percentage: d.values / totalRecords
 				};			
 			})
 			.sort(function(a, b) { 
 				return d3.descending(a.count, b.count); 
 			});
 
-		if(nodeRollup.length == 0) {
+		if(totalRecords == 0) {
 			// no cities matched
 			nodeRollup = [{
 				key: "(no matched cities)",
 				count: 0
 			}];
 		}
-	
-		// count all records
-		var allRollup = d3.nest()
-			.rollup(function(leaves) {
-				return {
-					total: d3.sum(leaves, function(d) {return d.count;})				
-				};
-			})
-			.entries(nodeRollup);
 	
 		var columns = d3.keys(nodeRollup[0]);
 
@@ -466,7 +492,6 @@
 			.on("mouseover",  highlightBeginsWith)
 			.on("mouseout", unHighlightBeginsWith)
 
-		
 		// enter + update
 		rows.attr("id", function(d) {
 				return d.beginsWith;
@@ -505,13 +530,13 @@
 				// first column - text
 
 				// replace unfriendly characters for display in UI
-				value = value.replace(/__/g, "\"").replace(/-space-/, " ");
+				value = value.replace(/__/g, "\"").replace(/-space-/g, " ");
 				
 				if(value.slice(-1) == "\"") {
 					// exact match due to last character being "
 					text += value;
 				}
-				else if (allRollup.total > 0) {
+				else if (totalRecords > 0) {
 					// partial match
 					text = value.substring(0, value.length - 1);
 					lastChar = value.slice(-1).replace(" ", "[space]");
@@ -523,9 +548,12 @@
 				}		
 			}
 			else if (i == 1) {
-				// second column - count and percentage
-				if(allRollup.total > 0)
-					text += value + " <span class='percentage'>(" + (Math.round(value * 10000.0 / allRollup.total) / 100) + "%)</span>";
+				// second column - count
+				if(totalRecords > 0) text += numberWithCommas(value);
+			}
+			else if (i == 2) {
+				// third column - percentage
+				if(totalRecords > 0) text += "(" + (Math.round(value * 10000.0) / 100) + "%)";				
 			}
 			
 			return text;
@@ -535,6 +563,10 @@
 		rows
 			.exit()		
 			.remove();
+			
+		function numberWithCommas(n) {
+			return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+		}
 	}	
 	
  	/* logs text to console if logging is enabled */
@@ -557,7 +589,7 @@
 					', ' + geo.state + '</div>';
 			}
 		})
-			.attr("id", function(d) {return "c" + d.id;});		
+			.attr("id", function(d) {return "c-" + d.id;});		
 	} 
 
 	/* updates the text statistics below the graph */
@@ -568,10 +600,14 @@
 	}
 	
 /* Events */
+
+	/* fires when animation changes (such as bubble drawing) on map have completed */
 	function onAnimationComplete() {
-		// fires when animation changes (such as bubble drawing) on map have completed
+		// hides loading animation
+		hideLoader();	
 	}
 	
+	/* fires when a bubble is drawn to the map */
 	function onBubbleDraw() {
 		var $this = d3.select(this),
 			currentValue = cityInput.getValue(),
@@ -590,17 +626,63 @@
 		// add beginsWith + 1 character as class name
 		$this.attr("class", classes);
 	}
-	
-	function onBubbleMouseOver() {
-		// move current bubble to the end of the parent element, so that it is fully visible
-		d3.select(this)
-			.remove()
-			.each(function(d) {
-				d3.select(".bubbles").node().appendChild(this.node());
-			});	
+
+	/* fires when the mouse pointer leaves a bubble */
+	function onBubbleMouseOut() {
+		var bubble = d3.select(this),
+			bubbleId = bubble.attr("id"),
+			options = map.options.bubblesConfig;
+
+		// restore bubble to original size
+		bubble
+			.classed(options.highlightClassName, false)
+			.style("fill-opacity", options.fillOpacity)		
+			.transition()
+			.duration(500)
+			.attr("r", bubble.attr("data-originalRadius"));
+
+		// return opacity to their original state
+		d3.selectAll("g.bubbles circle")
+			.style("opacity", null);
+
+		// remove highlighted label element
+		d3.selectAll("g.labels g." + bubbleId).remove();	
 	}
 
-	function onDataMapLoad(datamap) {
+	/* fires when the mouse pointer moves over a bubble */
+	function onBubbleMouseOver() {
+		var bubble = d3.select(this),
+			bubbleId = bubble.attr("id"),
+			options = map.options.bubblesConfig,
+			originalRadius = parseInt(bubble.attr("data-originalRadius") || bubble.attr("r"));
+			newRadius = originalRadius + 3;
+
+		// move current bubble to the end of the parent element, so that it is fully visible
+		bubble
+			.remove()
+			.each(function(d) {
+				d3.select("g.bubbles").node().appendChild(this);
+			})
+			// apply highlight css class
+			.classed(options.highlightClassName, true)
+			// save original radius
+			.attr("data-originalRadius", originalRadius)
+			// save new radius so that it can be accessed in drawLabelBoxes
+			.attr("data-newRadius", newRadius)
+			.style("fill-opacity", "1")
+			.transition()
+			.duration(200)
+			.attr("r", newRadius);
+
+		// reduce opacity of non-highlighted bubbles
+		d3.selectAll("g.bubbles circle:not(#" + bubbleId + ")")
+			.style("opacity", 0.4);
+		
+		drawLabelBoxes(bubble.data(), bubbleId);		
+	}
+
+	/* fires when the data map is first loaded */
+	function onDataMapLoad(datamap) {	
 		// debugging - write state to console
 		datamap.svg.selectAll(".datamaps-subunit").on("click", function(geo) {
 			toConsole(geo.properties.name);
@@ -609,7 +691,15 @@
 		// start inactivity timer 
 		// (inactivity causes bubbles to change color and other automatic activities)
 		resetInactivityTimer();
-	}			
+	}
+	
+	/* fires when the mouse has been inactive for a certain period of time */
+	function onMouseInactive() {
+		// auto-select a beginsWith entry
+		changeBeginsWithTable();
+		// change bubble colors
+		changeBubbleColors();		
+	}		
 
 /* CityInput Class */
 	function CityInput() {

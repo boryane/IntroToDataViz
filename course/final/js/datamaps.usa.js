@@ -458,7 +458,7 @@
           }
           
           // event callback
-          options.bubbleMouseOver.apply($this);
+          options.bubbleMouseOver.apply(this);
         })
         .on('mouseout', function ( datum ) {
           var $this = d3.select(this);
@@ -479,6 +479,9 @@
           }
 
           d3.selectAll('.datamaps-hoverover').style('display', 'none');
+
+          // event callback
+          options.bubbleMouseOut.apply(this);    
         })
         
       // change radius on all bubbles

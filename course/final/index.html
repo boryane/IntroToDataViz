@@ -3,24 +3,24 @@
 <head>
 	<title>Portland Code School Final Project: City Visualization</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-
+<!--
 	<link rel="stylesheet" type="text/css" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css">
 	<link rel="stylesheet" type="text/css" href="//cdnjs.cloudflare.com/ajax/libs/normalize/3.0.1/normalize.min.css">
-	
-	<!--
+-->
 	<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
 	<link rel="stylesheet" type="text/css" href="css/normalize.min.css">
-	-->
+
 	<link rel="stylesheet" type="text/css" href="css/main.css">
 	
+<!--
 	<script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.4.13/d3.min.js"></script>
 	<script src="//cdnjs.cloudflare.com/ajax/libs/topojson/1.1.0/topojson.min.js"></script>
 	<script src="//cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.js"></script>
-	<!--
+-->
 	<script src="js/d3.v3.min.js"></script>
 	<script src="js/topojson.v1.min.js"></script>
 	<script src="js/lodash.v2.4.1.min.js"></script>
-	-->
+
 	<script src="js/datamaps.usa.js"></script>
 </head>
 <body>
@@ -36,17 +36,32 @@
 			</div>
 			<div class="row">
 				<div class="col-md-10 map-container">
-					<div id="usmap"></div>
+					<div id="usmap">
+						<div class="loader" aria-busy="true" aria-label="Loading" role="progressbar">
+							<div class="text">loading data</div>
+							<div class="swing">
+								<div class="swing-l"></div>
+								<div></div><div></div><div></div>
+								<div class="swing-r"></div>
+							</div>
+						</div>						
+					</div>
 				</div>
 				<div class="col-md-2">
 					<div id="citylist"><table></table></div>
 				</div>
 			</div>
+			<div class="row">
+				<div class="col-md-10 map-container">
+					<p class="timer">
+						<span class="execution_time"></span> milliseconds, 
+						<span class="record_count"></span> records
+					</p>
+					<p class="credits">
+						created by: BoRyan Eberhard
+					</p>				
+				</div>
 		</form>
-		<p class="timer">
-			<span class="execution_time"></span> milliseconds, 
-			<span class="record_count"></span> records
-		</p>
 	</div>
 	<script src="js/main.js"></script>
 </body>
