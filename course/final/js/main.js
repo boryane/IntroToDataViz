@@ -266,7 +266,7 @@
 			};
 		});
 		
-		var labels = map.svg.selectAll("g.labels")
+		var labels = map.svg.select("g.labels")
 			.selectAll("g." + className)
 			.data(data);
 		
@@ -281,6 +281,9 @@
 
 		// add label text
 		var texts = labels
+			.selectAll("text")
+			.data(data)
+			.enter()
 			.append("text")
 			.attr("dx", function(d) {
 				return d.cx + d.r + (labelPadding + 2);
