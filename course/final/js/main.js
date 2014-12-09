@@ -50,6 +50,20 @@
 
 /*** Functions ***/
 
+	/* uses the DataMap library to refresh the bubbles on map */
+	function callDataMapLib(data) {
+		var radiusScale = d3.scale.pow().exponent(.2)
+			.domain([1, maxSampleSize])
+			.rangeRound([maxRadius, minRadius]);
+		
+		// set new bubble radius based on # of bubbles on map
+		map.options.bubblesConfig.bubbleRadius = radiusScale(data.length);
+		
+		// refresh bubbles and add an id
+		map.bubbles(data)
+			.attr("id", function(d) {return "c-" + d.id;});		
+	}
+
 	/* automatically picks a beginsWith row and highlights corresponding bubbles (cities) */
 	function changeBeginsWithTable(reset) {
 		var list = d3.selectAll("#citylist tr"), 
@@ -107,6 +121,129 @@
 			return scale(randomNumber);	
 		}		
 	}	
+
+	/* shows table of city counts based on the next beginsWith character */
+	function drawBeginsWithTable(data) {
+		var beginsWith = removeExactMatchChars(cache.beginsWith);
+			table = d3.selectAll("#citylist table"),
+			totalRecords = data.length;
+
+		// count records by grouping next beginsWith + next character
+		var nodeRollup = d3.nest()
+			.key(function(d) {
+				return getBeginsWithClassName(d.city, beginsWith.length + 1); 
+			})
+			.rollup(function(leaves) {return leaves.length;})
+			.entries(data)
+			.map(function(d) {
+				return {
+					beginsWith: d.key, 
+					count: d.values,
+					percentage: d.values / totalRecords
+				};			
+			})
+			.sort(function(a, b) { 
+				return d3.descending(a.count, b.count); 
+			});
+
+		if(totalRecords == 0) {
+			// no cities matched
+			nodeRollup = [{
+				beginsWith: "(no matched cities)",
+				count:0,
+				percentage:0.0
+			}];
+		}
+	
+		var columns = d3.keys(nodeRollup[0]);
+
+		// databind rows
+		var rows = table.selectAll("tr").data(nodeRollup);
+
+		// enter new rows
+		rows
+			.enter()
+			.append("tr")
+			.on("mouseover",  highlightBeginsWith)
+			.on("mouseout", unHighlightBeginsWith)
+
+		// enter + update
+		rows
+			.attr("id", function(d) {
+				return getBeginsWithClassName(d.beginsWith);
+			})
+			.style("opacity", 0)			
+			.transition()
+			.duration(500)
+			.style("opacity", 1);
+		
+		// databind cells
+		var cells = rows.selectAll("td")
+			.data(function(d) {
+				return columns.map(function (column) {
+					return {
+						key: column, 
+						value: d[column]
+					};
+				});
+			});
+		
+		// enter new cells
+		cells
+			.enter()
+			.append("td")
+			.attr("class", function(d) {
+				return d.key;
+			});
+	
+		// enter + update text
+		cells.html(function (d, i) {
+			var value = d.value,
+				text = "",
+				lastChar;
+
+			if(i == 0) {
+				// first column - text
+
+				// replace unfriendly characters for display in UI
+				value = value.replace(/__/g, "\"").replace(/-space-/g, " ");
+				
+				if(value.slice(-1) == "\"") {
+					// exact match due to last character being "
+					text += value;
+				}
+				else if (totalRecords > 0) {
+					// partial match
+					text = value.substring(0, value.length - 1);
+					lastChar = value.slice(-1).replace(" ", "[space]");
+					text += "<span class='nextChar'>" + lastChar + "</span>";
+				}
+				else {
+					// no matches
+					text += value;
+				}		
+			}
+			else if (i == 1) {
+				// second column - count
+				if(totalRecords > 0) text += numberWithCommas(value);
+			}
+			else if (i == 2) {
+				// third column - percentage
+				if(totalRecords > 0) text += "(" + (Math.round(value * 10000.0) / 100) + "%)";				
+			}
+			
+			return text;
+		});
+		
+		// remove unbound rows
+		rows
+			.exit()		
+			.remove();
+			
+		function numberWithCommas(n) {
+			return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+		}
+	}
 
 	/* draws text label boxes next to bubbles on the map */
 	function drawLabelBoxes(data, className) {
@@ -176,49 +313,24 @@
 			.exit()
 			.remove();	
 	}
-	
-	/* updates the data to only show cities beginning with "beginsWith" */
-	function filterCities(data, beginsWith) {
-		var timer = new Timer();
-		
-		if(beginsWith && beginsWith.length > 0) {
-			// check to see if we can re-use cached data
-			if(cache.data.length > 0 && 
-					beginsWith.indexOf(cache.beginsWith) == 0 && 
-					cache.data.length < maxSampleSize) data = cache.data;
-		
-			// store search text
-			cache.beginsWith = beginsWith.toLowerCase();
-			
-			// we have a city search string
-			cache.data = sampleData(
-				_.filter(data, function(row) {
-					var city = row.city.toLowerCase();
-					return (city.indexOf(cache.beginsWith) == 0);
-				})
-			, cache.beginsWith);
-		} else {
-			// empty city search, sample from all data
-			cache.beginsWith = "";
-			cache.data = sampleData(data);
-		}
 
-		// refresh bubbles on map	
-		updateDataMap(cache.data);
-
-		// fire data refreshed event
-		onDataRefreshed();
-		
-		// show table on right side
-		var tableData = (cache.data.length < maxSampleSize) ? cache.data : data;
-		tableData = _.filter(data, function(row) {
-			var city = row.city.toLowerCase();
-			return (city.indexOf(cache.beginsWith) == 0);
-		});
-		showBeginsWithTable(tableData);
-		
-		// update text stats at bottom of map		
-		updateStats(cache.data, timer);
+	/* returns data that starts with the "beginsWith" parameter */
+	function filterData(data, beginsWith) {
+		if(beginsWith && beginsWith.length > 0) {			
+			if( /^\"[^\"]+\"$/.test(beginsWith) ) {
+				// exact match
+				beginsWith = removeExactMatchChars(beginsWith);
+				data = _.filter(data, function(d) {
+					return (d.city.toLowerCase() == beginsWith);
+				});			
+			} else {	
+				// partial match
+				data = _.filter(data, function(d) {
+					return (d.city.toLowerCase().indexOf(beginsWith) == 0);
+				});
+			}	
+		}	
+		return data;
 	}
 	
 	/* formats csv or json data to DataMaps format */
@@ -242,7 +354,7 @@
 	function getBeginsWithClassName(value, length) {
 		var length = (length === undefined) ? value.length : length,
 			className = value.substring(0, length).toLowerCase();
-		
+
 		if(value.length == (length - 1))
 			// exact match, use "__" to represent exact string match
 			className = "__" + className + "__";
@@ -326,6 +438,11 @@
 		d3.selectAll("circle.datamaps-bubble." + beginsWithClassName).classed(highlightClassName, false);			
 	}
 
+	/* removes double quotes (used for exact match searches) */
+	function removeExactMatchChars(value) {
+		return (value && value.length > 0) ? value.replace(/\"/g, "") : value;
+	}
+
 	/* resets bubble border/fill colors to match */
 	function resetInactivityChanges() {
       var options = map.options.bubblesConfig;
@@ -387,16 +504,20 @@
 		d3.select("body").on("mousemove", arguments.callee);
 	}
 
-	/* reduces dataset size, so as not to overwhelm the map with too many data points */
+	/* returns a dataset with a maximum (sample) # of records */
 	function sampleData(data, beginsWith) {
-		groupByLength = (beginsWith || "").length + 1;
+		var beginsWithLength = (beginsWith || "").length;
+		
+		if(beginsWithLength > 0) {			
+			data = filterData(data, beginsWith);
+		}
 		
 		// lodash chaining
 		return _(data)
 			.chain()
-			// group by city beginsWith
+			// group by beginsWith+1 character (the next possible character match)
 			.groupBy(function(d) {
-				return d.city.slice(0, groupByLength).toLowerCase();
+				return d.city.slice(0, beginsWithLength + 1).toLowerCase();
 			})
 			// include at least 30 entries for each group
 			.reduce(function(result, d) {
@@ -417,7 +538,7 @@
 			svg = map.svg;
 	 
 	 	// update bubbles on map
-		filterCities(allCities, cityInput.getValue());
+		updateMap(allCities, cityInput.getValue());
 
 	 	// add labels group element
 		map.svg.append("g").attr("class", "labels"); 
@@ -436,8 +557,12 @@
 			// multiple input events are fired in a short period
 			if(!refreshingMap) {
 				refreshingMap = true;
-				setTimeout(function() {
-					filterCities(allCities, self.value);
+				setTimeout(function() {			
+					// update city in hash
+					window.location.hash = new UrlHash().add("begins-with", self.value).toString();
+					
+					// update map		
+					updateMap(allCities, self.value);
 					refreshingMap = false;
 				}, 1000);
 			}
@@ -448,148 +573,46 @@
 		});
 	}
 	
-	/* shows table of city counts based on the next beginsWith character */
-	function showBeginsWithTable(data) {
-		var table = d3.selectAll("#citylist table"),
-			totalRecords = data.length;
-
-		// count records by grouping next beginsWith + next character
-		var nodeRollup = d3.nest()
-			.key(function(d) {
-				return getBeginsWithClassName(d.city, cache.beginsWith.length + 1); 
-			})
-			.rollup(function(leaves) {return leaves.length;})
-			.entries(data)
-			.map(function(d) {
-				return {
-					beginsWith: d.key, 
-					count: d.values,
-					percentage: d.values / totalRecords
-				};			
-			})
-			.sort(function(a, b) { 
-				return d3.descending(a.count, b.count); 
-			});
-
-		if(totalRecords == 0) {
-			// no cities matched
-			nodeRollup = [{
-				key: "(no matched cities)",
-				count: 0
-			}];
-		}
-	
-		var columns = d3.keys(nodeRollup[0]);
-
-		// databind rows
-		var rows = table.selectAll("tr").data(nodeRollup);
-
-		// enter new rows
-		rows
-			.enter()
-			.append("tr")
-			.on("mouseover",  highlightBeginsWith)
-			.on("mouseout", unHighlightBeginsWith)
-
-		// enter + update
-		rows.attr("id", function(d) {
-				return d.beginsWith;
-			})
-			.style("opacity", 0)			
-			.transition()
-			.duration(500)
-			.style("opacity", 1);
-		
-		// databind cells
-		var cells = rows.selectAll("td")
-			.data(function(d) {
-				return columns.map(function (column) {
-					return {
-						key: column, 
-						value: d[column]
-					};
-				});
-			});
-		
-		// enter new cells
-		cells
-			.enter()
-			.append("td")
-			.attr("class", function(d) {
-				return d.key;
-			});
-	
-		// enter + update text
-		cells.html(function (d, i) {
-			var value = d.value,
-				text = "",
-				lastChar;
-
-			if(i == 0) {
-				// first column - text
-
-				// replace unfriendly characters for display in UI
-				value = value.replace(/__/g, "\"").replace(/-space-/g, " ");
-				
-				if(value.slice(-1) == "\"") {
-					// exact match due to last character being "
-					text += value;
-				}
-				else if (totalRecords > 0) {
-					// partial match
-					text = value.substring(0, value.length - 1);
-					lastChar = value.slice(-1).replace(" ", "[space]");
-					text += "<span class='nextChar'>" + lastChar + "</span>";
-				}
-				else {
-					// no matches
-					text += value;
-				}		
-			}
-			else if (i == 1) {
-				// second column - count
-				if(totalRecords > 0) text += numberWithCommas(value);
-			}
-			else if (i == 2) {
-				// third column - percentage
-				if(totalRecords > 0) text += "(" + (Math.round(value * 10000.0) / 100) + "%)";				
-			}
-			
-			return text;
-		});
-		
-		// remove unbound rows
-		rows
-			.exit()		
-			.remove();
-			
-		function numberWithCommas(n) {
-			return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-		}
-	}	
-	
  	/* logs text to console if logging is enabled */
 	function toConsole(text) {
 		if(loggingEnabled) console.log(text);
 	}	
-	
-	/* calls the DataMap library to refresh the bubbles on map */
-	function updateDataMap(data) {
-		var radiusScale = d3.scale.pow().exponent(.2)
-			.domain([1, maxSampleSize])
-			.rangeRound([maxRadius, minRadius]);
+
+	/* updates the data to only show cities beginning with "beginsWith" */
+	function updateMap(data, beginsWith) {
+		var timer = new Timer();
 		
-		// set new bubble radius based on # of bubbles on map
-		map.options.bubblesConfig.bubbleRadius = radiusScale(data.length);
+		if(beginsWith && beginsWith.length > 0) {
+			// check to see if we can re-use cached data
+			if(cache.data.length > 0 && 
+					beginsWith.indexOf(cache.beginsWith) == 0 && 
+					cache.data.length < maxSampleSize) data = cache.data;
 		
-		map.bubbles(data, {
-			popupTemplate: function (geo) {
-				return '<div class="hoverinfo">' + geo.city +
-					', ' + geo.state + '</div>';
-			}
-		})
-			.attr("id", function(d) {return "c-" + d.id;});		
-	} 
+			// store search text
+			cache.beginsWith = beginsWith.toLowerCase();
+			
+			// return new data
+			cache.data = sampleData(data, cache.beginsWith);
+		} else {
+			// empty city search, sample from all data
+			cache.beginsWith = "";
+			cache.data = sampleData(data);
+		}
+
+		// refresh bubbles on map	
+		callDataMapLib(cache.data);
+
+		// fire data refreshed event
+		onDataRefreshed();
+		
+		// show table on right side
+		var tableData = (cache.data.length < maxSampleSize) ? cache.data : data;
+		tableData = filterData(tableData, cache.beginsWith);
+		drawBeginsWithTable(tableData);
+		
+		// update text stats at bottom of map		
+		updateStats(cache.data, timer);
+	}
 
 	/* updates the text statistics below the graph */
 	function updateStats(data, timer) {
@@ -607,7 +630,7 @@
 	/* fires when a bubble is drawn to the map */
 	function onBubbleDraw() {
 		var $this = d3.select(this),
-			currentValue = cityInput.getValue(),
+			currentValue = removeExactMatchChars(cityInput.getValue()),
 			city = getDataValue($this, "city"),
 			className = getBeginsWithClassName(city, currentValue.length + 1),
 			classes = $this.attr("data-baseClass");
@@ -708,7 +731,7 @@
 
 /* CityInput Class */
 	function CityInput() {
-		var inputField = d3.select("#city"),
+		var inputField = d3.select("#begins-with"),
 			onChangeCallback = function() {};
 		
 		// public methods
@@ -722,13 +745,16 @@
 		}
 
 		this.reset = function() {
+			var value = "",
+				hash = new UrlHash();
 			this.setValue("");
 			setValueToSession(this.value);
+			window.location.hash = hash.empty().add("begins-with", "").toString();
 			onChangeCallback.apply(this);
 		}
 
 		this.setValue = function(value) {
-			inputField.attr("value", value);
+			inputField.property("value", value);
 		};
 	
 		// private methods
@@ -749,11 +775,19 @@
 		}
 	
 		// initialize
-		this.setValue(getValueFromSession());
+		this.setValue(function() {
+			var hash = new UrlHash();
+			if(hash.count() > 0 && hash.value("begins-with")) {
+				return hash.value("begins-with");
+			} else {
+				return getValueFromSession();			
+			}
+		});
 	
 		// event handler for when input field changes
 		inputField.on("input", function() {
-			setValueToSession(this.value);
+			var value = this.value;				
+			setValueToSession(value);
 			onChangeCallback.apply(this);
 		});
 	}
@@ -764,18 +798,98 @@
 		this.reset = function() {
 			start = end = new Date().getTime();
 			return this;
-		}
+		};
 		this.start = function() {
 			start = new Date().getTime();
 			return this;
-		}
+		};
 		this.stop = function() {
 			end = new Date().getTime();
 			this.time = end - start;
 			return this;
-		}
+		};
 		this.time = 0;
 		this.reset();		
 	}
+	
+/* UrlHash Class */
+	function UrlHash() {
+		var de = decodeURIComponent, en = encodeURIComponent,
+			self = this,
+			params;
+		
+		this.add = function(key, value) {
+			params[key] = value;
+			return self;
+		}
+		
+		// how many hashed values are there
+		this.count = function() {
+			var size = 0, key;
+			for (key in params) {
+			  if (params.hasOwnProperty(key)) size++;
+			}
+			return size;
+		};
+		
+		this.empty = function() {
+			params = {};
+			return self;
+		}
+		
+		// return an object of all hash values
+		this.nameValues = function() {
+			return params;
+		};
+		
+		// update hash object based on current url hash
+		this.refresh = function() {
+			parseToObject(window.location.hash);
+			return self;
+		}
+		
+		// convert to string
+		this.toString = function() {
+			var hash = "", key, value;
+			for (key in params) {
+				value = params[key];
+				hash += "&" + en(key);
+				if(value !== undefined)
+					hash += "=" + en(value);
+			}
+			if(hash.charAt(0) == "&") hash = hash.substring(1);
+			return hash.replace(/\%20/g, "+");
+		};
+		
+		this.value = function(key) {
+			return params[key];
+		}
+		
+		function parseToObject(hash) {
+			var pair, key, value;
+			
+			// reset
+			self.empty();
+
+			// remove preceding # character and correct spaces
+			hash = hash.substring(hash.indexOf("#") + 1).replace(/\+/g, " ");
+			
+			// split
+			if(hash.length > 0) {
+				hash = hash.split("&");
+				// parse individual name/values
+				for (var i = 0; i < hash.length; i++) {
+					pair = hash[i].split('=');
+					key = pair[0];
+					value = pair[1];
+					if(value !== undefined) value = de(value);
+					params[de(key)] = value;
+				}
+			}
+		}
+		
+		// initialize
+		this.refresh();
+	}	
 	
 })();
