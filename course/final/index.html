@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 	<title>Portland Code School Final Project: City Visualization</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
 	<link rel="stylesheet" type="text/css" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css">
 	<link rel="stylesheet" type="text/css" href="//cdnjs.cloudflare.com/ajax/libs/normalize/3.0.1/normalize.min.css">
@@ -24,18 +24,18 @@
 	<script src="js/datamaps.usa.js"></script>
 </head>
 <body>
-	<div class="container">
+	<div class="container-fluid">
 		<form role="form">
 			<div class="row">
-				<div class="form-group col-md-11">
+				<div class="form-group col-md-9">
 					<input type="text" class="form-control" id="begins-with" placeholder="Enter full or partial city name here">
 				</div>
-				<div class="col-md-1">
-					<button type="button" class="btn btn-default reset">Reset</button>
+				<div class="form-group hidden-sm hidden-xs col-md-3">
+					<button type="button" class="btn btn-block btn-default reset">Reset</button>
 				</div>
 			</div>
 			<div class="row">
-				<div class="col-md-10 map-container">
+				<div class="col-md-9 map-container">
 					<div id="usmap">
 						<div class="loader" aria-busy="true" aria-label="Loading" role="progressbar">
 							<div class="text">loading data</div>
@@ -45,22 +45,23 @@
 								<div class="swing-r"></div>
 							</div>
 						</div>						
-					</div>
+					</div>				
 				</div>
-				<div class="col-md-2">
+				<div class="col-md-3 city-table">
 					<div id="citylist"><table></table></div>
 				</div>
 			</div>
 			<div class="row">
-				<div class="col-md-10 map-container">
+				<div class="col-md-9 details">
 					<p class="timer">
 						<span class="execution_time"></span> milliseconds, 
 						<span class="record_count"></span> records
 					</p>
 					<p class="credits">
 						created by: BoRyan Eberhard
-					</p>				
+					</p>					
 				</div>
+			</div>			
 		</form>
 	</div>
 	<script src="js/main.js"></script>

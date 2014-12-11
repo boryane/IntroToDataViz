@@ -82,7 +82,7 @@
     var height = options.height || element.offsetHeight;
     var projection, path;
     var svg = this.svg;
-    
+
     if ( options && typeof options.scope === 'undefined') {
       options.scope = 'world';
     }

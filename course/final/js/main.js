@@ -18,13 +18,14 @@
 	var
 		cityInput = new CityInput(),
 		cache = {
+			allData: [],
 			data: [],
 			beginsWith: ""
 		},
 		map = new Datamap({
 			element: document.getElementById("usmap"),
-				scope: "usa",
-				geographyConfig: {
+			scope: "usa",
+			geographyConfig: {
 				popupOnHover: false,
 				highlightOnHover: false
 			},
@@ -42,11 +43,20 @@
 				highlightOnHover: false,
 				popupOnHover: false
 			},
-			done: onDataMapLoad		 
+			done: onDataMapLoad	 
 		});
 	
+	// show loader while map is loading
+	showLoadingAnimation();
+	
 	// load data and initialize Map
-	d3.csv(mapPath, function(data) {setupMap(data, "csv");});
+	d3.csv(mapPath, function(data) {
+		// format the data for the topojson format
+		cache.allData = formatToDataMaps(data, "csv");
+
+		// draw map
+		initializeMap(cache.allData);
+	});
 
 /*** Functions ***/
 
@@ -385,14 +395,15 @@
 			.style("opacity", 0)
 			.transition()
 			.duration(100)
-			.style("display", "none");	
+			.style("display", "none");
 	}
 	/* show loading animation */
-	function showLoader() {
-		d3.select(".loader")
-			.interrupt()
-			.style("opacity", 1)
-			.style("display", "block");	
+	function showLoadingAnimation() {
+		d3.select(map.options.element)
+			.each(function() {
+				var loader = d3.select(".loader").remove();
+				this.appendChild(loader.node());
+			});
 	}
 
 	/* highlights beginsWith row and related bubbles */
@@ -439,6 +450,47 @@
 		
 		// unhighlight bubbles
 		d3.selectAll("circle.datamaps-bubble." + beginsWithClassName).classed(highlightClassName, false);			
+	}
+
+	/* sets up the initial map after a dataset has been loaded from JSON or CSV */
+	function initializeMap(data) {
+		var svg = map.svg,
+			resizingWindow;
+			
+		// setting responsive attributes	 
+	 	svg
+	 		.attr("preserveAspectRatio", "xMinYMin meet")
+	 		.attr("width", "100%")
+	 
+	 	// update bubbles on map
+		updateMap(data, cityInput.getValue());
+
+	 	// add labels group element
+		svg.append("g").attr("class", "labels"); 
+
+		// event handler for when city name is changed
+		cityInput.onChange(function() {
+			// shows loading animation
+			showLoadingAnimation();
+
+			// restart color changer
+			resetInactivityTimer();
+			
+			// update city in hash
+			window.location.hash = new UrlHash().add("begins-with", this.value).toString();
+			
+			// update map		
+			updateMap(data, this.value);
+		});
+		
+		d3.select("button.reset").on("click", function() {
+			cityInput.reset();
+		});
+		
+		d3.select(window).on("resize", function() {
+			clearTimeout(resizingWindow);
+			resizingWindow = setTimeout(onWindowResizeEnd, 500);
+		});
 	}
 
 	/* removes double quotes (used for exact match searches) */
@@ -531,49 +583,6 @@
 				_.sample(data, maxSampleSize)
 			)
 			.value();
-	}
-
-	/* sets up the initial map after a dataset has been loaded from JSON or CSV */
-	function setupMap(data, type) {
-		// format the data for the topojson format
-		var allCities = formatToDataMaps(data, type),
-			refreshingMap = false,
-			svg = map.svg;
-	 
-	 	// update bubbles on map
-		updateMap(allCities, cityInput.getValue());
-
-	 	// add labels group element
-		map.svg.append("g").attr("class", "labels"); 
-
-		// event handler for when city name is changed
-		cityInput.onChange(function() {
-			var self = this;
-
-			// shows loading animation
-			showLoader();
-
-			// restart color changer
-			resetInactivityTimer();
-			
-			// prevents the map from being repeatedly refreshed when 
-			// multiple input events are fired in a short period
-			if(!refreshingMap) {
-				refreshingMap = true;
-				setTimeout(function() {			
-					// update city in hash
-					window.location.hash = new UrlHash().add("begins-with", self.value).toString();
-					
-					// update map		
-					updateMap(allCities, self.value);
-					refreshingMap = false;
-				}, 1000);
-			}
-		});
-		
-		d3.select("button.reset").on("click", function() {
-			cityInput.reset();
-		});
 	}
 	
  	/* logs text to console if logging is enabled */
@@ -713,8 +722,9 @@
 	}
 
 	/* fires when the data map is first loaded */
-	function onDataMapLoad(datamap) {	
-		// debugging - write state to console
+	function onDataMapLoad(datamap) {
+		toConsole("data map loaded");
+		// write state to console
 		datamap.svg.selectAll(".datamaps-subunit").on("click", function(geo) {
 			toConsole(geo.properties.name);
 		});
@@ -730,12 +740,29 @@
 		changeBeginsWithTable();
 		// change bubble colors
 		changeBubbleColors();		
-	}		
+	}
+	
+	/* fires after window has been resized */
+	function onWindowResizeEnd() {
+		var options = map.options;
+		toConsole("window resized");
+		
+		// remove existing map
+		d3.select("#usmap .datamap").remove();
+		options["bubblesLayer"] = null;
+		
+		// create new map
+		map = new Datamap(options);
+
+		// draw bubbles
+		initializeMap(cache.allData);	
+	}	
 
 /* CityInput Class */
 	function CityInput() {
 		var inputField = d3.select("#begins-with"),
-			onChangeCallback = function() {};
+			onChangeCallback = function() {},
+			inputChanging;
 		
 		// public methods
 		this.getValue = function() {
@@ -789,9 +816,16 @@
 	
 		// event handler for when input field changes
 		inputField.on("input", function() {
-			var value = this.value;				
-			setValueToSession(value);
-			onChangeCallback.apply(this);
+			var self = this;
+			
+			// delay firing change event until typing has stopped for 500ms
+			clearTimeout(inputChanging);
+			inputChanging = setTimeout(function() {
+				var value = self.value;				
+				setValueToSession(value);
+				toConsole("input changed");
+				onChangeCallback.apply(self);			
+			}, 500);		
 		});
 	}
 
