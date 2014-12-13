@@ -170,8 +170,7 @@
 			.append("tr")
 			.on("click", function(d) {
 				unHighlightBeginsWith.call(this);
-				cityInput.setValue(removeProtectedChars(this.id));
-				cityInput.triggerChange();
+				cityInput.triggerChange(removeProtectedChars(this.id));
 			})
 			.on("mouseover", highlightBeginsWith)
 			.on("mouseout", unHighlightBeginsWith)
@@ -822,15 +821,15 @@
 			this.setValue("");
 			setValueToSession(this.value);
 			window.location.hash = hash.empty().add("begins-with", "").toString();
-			onChange.apply(this);
+			onChange.call(this);
 		};
 
 		this.setValue = function(value) {
 			inputField.property("value", value);
 		};
 		
-		this.triggerChange = function() {
-			// bypass delay flag is true
+		this.triggerChange = function(value) {
+			this.setValue(value);
 			onChange.call(inputField.node());
 		};
 
