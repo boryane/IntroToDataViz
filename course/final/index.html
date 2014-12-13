@@ -1,41 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<title>Portland Code School Final Project: City Visualization</title>
+	<title>US City Visualization</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
+<!--
 	<link rel="stylesheet" type="text/css" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css">
 	<link rel="stylesheet" type="text/css" href="//cdnjs.cloudflare.com/ajax/libs/normalize/3.0.1/normalize.min.css">
-<!--
+-->
 	<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
 	<link rel="stylesheet" type="text/css" href="css/normalize.min.css">
--->
+
 	<link rel="stylesheet" type="text/css" href="css/main.css">
 	
-
+<!--
 	<script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.4.13/d3.min.js"></script>
 	<script src="//cdnjs.cloudflare.com/ajax/libs/topojson/1.1.0/topojson.min.js"></script>
 	<script src="//cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.js"></script>
-<!--
+-->
 	<script src="js/d3.v3.min.js"></script>
 	<script src="js/topojson.v1.min.js"></script>
 	<script src="js/lodash.v2.4.1.min.js"></script>
--->
+
 	<script src="js/datamaps.usa.js"></script>
 </head>
 <body>
 	<div class="container-fluid">
 		<form role="form">
 			<div class="row">
-				<div class="form-group col-md-9">
+				<div class="form-group col-md-10">
 					<input type="text" class="form-control" id="begins-with" placeholder="Enter full or partial city name here">
 				</div>
-				<div class="form-group hidden-sm hidden-xs col-md-3">
+				<div class="form-group hidden-sm hidden-xs col-md-2">
 					<button type="button" class="btn btn-block btn-default reset">Reset</button>
 				</div>
 			</div>
 			<div class="row">
-				<div class="col-md-9 map-container">
+				<div class="col-md-10 map-container">
 					<div id="usmap">
 						<div class="loader" aria-busy="true" aria-label="Loading" role="progressbar">
 							<div class="text">loading data</div>
@@ -47,17 +47,17 @@
 						</div>						
 					</div>				
 				</div>
-				<div class="col-md-3 city-table">
+				<div class="col-md-2 city-table">
 					<div id="citylist"><table></table></div>
 				</div>
 			</div>
 			<div class="row">
-				<div class="col-md-9 details">
+				<div class="col-md-10 credits">
 					<p class="timer">
-						<span class="execution_time"></span> milliseconds, 
-						<span class="record_count"></span> records
+						<span class="record_count" data-textFormat="{0} records">0 records</span> in  
+						<span class="execution_time"></span> ms
 					</p>
-					<p class="credits">
+					<p class="author">
 						created by: BoRyan Eberhard
 					</p>					
 				</div>

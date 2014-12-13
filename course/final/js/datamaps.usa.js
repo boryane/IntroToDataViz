@@ -594,7 +594,7 @@
     else {
       draw( this[options.scope + 'Topo'] || options.geographyConfig.dataJson);
     }
-
+ 
     return this;
 
       function draw (data) {

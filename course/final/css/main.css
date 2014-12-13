@@ -8,29 +8,21 @@ p {
 
 /* Bootstrap */
 .container-fluid {
-	/*margin-top:15px;*/
-	margin:0.7em;
-	padding-left:0;
-	padding-right:0;
-	/*
-	margin:0.7em;
-	padding-left:0;
-	*/
+	margin: 0.7em;
+	padding: 0;
 }
 .form-group {
 	margin-bottom: 0.5em;
 }
 .row {
-	margin-left:0;
-	margin-right:0;
+	margin: 0;
 }
-.col-md-9 {
-	padding-left:0;
-	padding-right:0;
+.col-md-10 {
+	padding: 0;
 }
-div.col-md-1,
-	div.col-md-2 {
-	padding:0;
+.col-md-2 {
+	padding-left: 0.7em;
+	padding-right: 0;
 }
 
 /* Map */
@@ -59,7 +51,7 @@ div.col-md-1,
 	top: 0;
 }
 #usmap .datamap .labels text {
-	font-size: 0.7em;
+	font-size: 0.65em;
 }
 #usmap .datamap .labels rect {
 	fill: #ffffff;
@@ -90,7 +82,7 @@ div.col-md-1,
 #citylist td {
 	font-size: 0.8em;
 	font-weight: 300;
-	padding: 0 0.5em 0.25em 0;
+	padding: 0.12em 0.5em 0.12em 0;
 }
 #citylist td.beginsWith {
 	padding-left: 0.7em;
@@ -110,13 +102,13 @@ div.col-md-1,
 	color: #999;
 	font-size: 0.6em;
 }
-.details {
-	margin-top: -0.4em;
+.credits {
+	margin-top: 0.3em;
 }
-.timer {
+.credits .timer {
 	float:left;
 }
-.credits {
+.credits .author {
 	float:right;
 }
 
@@ -132,7 +124,7 @@ div.col-md-1,
 	top:0;
 	width:100%;
 }
- .loader .text {
+.loader .text {
  	display:inline-block;
 	font-size:0.8em;
 	font-weight:500;
@@ -271,7 +263,13 @@ div.col-md-1,
 } 
 
 @media screen and (max-width: 768px) {
+	#usmap .datamap .labels text {
+		font-size: 0.55em;
+	}
 	.city-table {
 		padding: 0 0 0.5em;
 	}
+	.loader .text {
+		top:42%;
+	}	
 }
